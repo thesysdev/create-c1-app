@@ -59,10 +59,10 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/your-org/create-c1-app.git"
+        "url": "https://github.com/thesysdev/create-c1-app.git"
     },
     "bugs": {
-        "url": "https://github.com/your-org/create-c1-app/issues"
+        "url": "https://github.com/thesysdev/create-c1-app/issues"
     },
-    "homepage": "https://github.com/your-org/create-c1-app#readme"
+    "homepage": "https://github.com/thesysdev/create-c1-app#readme"
 }
