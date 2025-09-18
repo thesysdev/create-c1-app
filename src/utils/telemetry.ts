@@ -3,7 +3,6 @@ import os from 'os'
 import fs from 'fs'
 import path from 'path'
 import logger from './logger'
-import { nanoid } from 'nanoid'
 
 export interface TelemetryEvent {
   event: string
@@ -26,7 +25,7 @@ export class TelemetryManager {
   private deviceInfo: DeviceInfo
   private isEnabled: boolean
   private readonly projectKey: string
-  private readonly distinctId: string
+  private distinctId: string
 
   constructor() {
     // PostHog project key - replace with your actual project key
@@ -39,7 +38,20 @@ export class TelemetryManager {
       this.initializeClient()
     }
 
-    this.distinctId = nanoid()
+    // Initialize distinctId asynchronously
+    this.distinctId = ''
+    this.initializeDistinctId()
+  }
+
+  private async initializeDistinctId(): Promise<void> {
+    try {
+      const { nanoid } = await import('nanoid')
+      this.distinctId = nanoid()
+    } catch (error) {
+      // Fallback to random string if nanoid fails
+      this.distinctId = Math.random().toString(36).substring(2, 15)
+      logger.debug('Failed to load nanoid, using fallback ID generation')
+    }
   }
 
   private checkTelemetryEnabled(): boolean {
@@ -95,6 +107,11 @@ export class TelemetryManager {
     }
 
     try {
+      // Ensure distinctId is initialized
+      if (!this.distinctId) {
+        await this.initializeDistinctId()
+      }
+
       const enrichedProperties = {
         ...properties,
         ...this.deviceInfo

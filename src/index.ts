@@ -9,6 +9,27 @@ import { ProjectGenerator } from './generators/project'
 import { EnvironmentManager } from './env/envManager'
 import telemetry from './utils/telemetry'
 
+// Check Node.js version before doing anything else
+function checkNodeVersion(): void {
+  const nodeVersion = process.version
+  const majorVersion = parseInt(nodeVersion.slice(1).split('.')[0])
+  const minorVersion = parseInt(nodeVersion.slice(1).split('.')[1])
+  
+  // Check if version is greater than 20.19.0
+  const isVersionSupported = 
+    majorVersion > 20 || 
+    (majorVersion === 20 && minorVersion >= 9) 
+  
+  if (!isVersionSupported) {
+    console.error(`❌ Node.js version ${nodeVersion} is not supported.`)
+    console.error(`📋 This package requires Node.js version >= 20.9.0`)
+    console.error(`🔄 Please upgrade your Node.js version and try again.`)
+    console.error(``)
+    console.error(`💡 You can download the latest Node.js from: https://nodejs.org/`)
+    process.exit(1)
+  }
+}
+
 const TOTAL_STEPS = 3
 class CreateC1App {
   private readonly spinner: SpinnerManager
@@ -24,6 +45,9 @@ class CreateC1App {
 
   async main (): Promise<void> {
     try {
+      // Check Node.js version first
+      checkNodeVersion()
+      
       // Parse CLI arguments first to check for debug mode
       const options = await this.parseArguments()
 
@@ -309,8 +333,10 @@ class CreateC1App {
 }
 
 export async function main (): Promise<void> {
+  // Check Node.js version before instantiating anything
+  checkNodeVersion()
+  
   const app = new CreateC1App()
-
   await app.main()
 }
 
