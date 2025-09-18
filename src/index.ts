@@ -4,8 +4,8 @@ import { hideBin } from 'yargs/helpers';
 import logger from './utils/logger';
 import SpinnerManager from './utils/spinner';
 import { Validator } from './utils/validation';
-import { asyncTracker } from './utils/asyncTracker';
 import { CLIOptions, CreateC1AppConfig } from './types/index';
+import { ProjectGenerator } from './generators/project';
 
 class CreateC1App {
     private spinner: SpinnerManager;
@@ -26,9 +26,6 @@ class CreateC1App {
             // Parse CLI arguments first to check for debug mode
             const options = await this.parseArguments();
 
-            // Start async tracking before any other async operations
-            asyncTracker.start();
-
             if (options.debug) {
                 logger.info('🔍 Debug mode enabled - async tracking started');
             }
@@ -36,20 +33,17 @@ class CreateC1App {
             logger.info('🧙‍♂️ Welcome to Create C1 App!');
             logger.newLine();
 
+            // Show welcome message and steps
+            this.showWelcome();
+
             // Store provided API key if given and validate it, or prompt for one
-            if (options.apiKey) {
-                if (options.apiKey.trim().length === 0) {
-                    throw new Error('API key cannot be empty');
-                }
+            if (options.apiKey && options.apiKey.trim().length > 0) {
                 this.providedApiKey = options.apiKey.trim();
                 logger.info(`🔑 Using provided API key: ${this.providedApiKey.substring(0, 8)}...`);
             } else {
                 // Prompt user to generate and provide API key
                 this.providedApiKey = await this.promptForApiKey();
             }
-
-            // Show welcome message and steps
-            this.showWelcome();
 
             // Step 1: Gather project configuration
             await this.gatherProjectConfig(options);
@@ -70,6 +64,7 @@ class CreateC1App {
             // Success message
             this.showSuccessMessage();
 
+            this.spinner.stop();
         } catch (error) {
             logger.error(`Create C1 App failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
             process.exit(1);
@@ -140,7 +135,7 @@ class CreateC1App {
         });
 
         const trimmedKey = apiKey.trim();
-        logger.info(`🔑 API key received: ${trimmedKey.substring(0, 8)}...`);
+        logger.info(`🔑 API key received: ${trimmedKey.substring(0, 8)}****`);
         logger.newLine();
 
         return trimmedKey;
@@ -149,13 +144,8 @@ class CreateC1App {
     private showWelcome(): void {
         logger.info('This tool will help you:');
         logger.info('  1. Create a new Thesys project');
-
-        if (this.providedApiKey) {
-            logger.info('  2. Setup environment with provided API key');
-        } else {
-            logger.info('  2. Authenticate and generate an API key');
-            logger.info('  3. Setup environment with dotenv');
-        }
+        logger.info('  2. Authenticate and generate an API key');
+        logger.info('  3. Setup environment');
 
         logger.newLine();
     }
@@ -216,8 +206,6 @@ class CreateC1App {
         this.spinner.start('Setting up your template...');
 
         try {
-            // Import and use project generator
-            const { ProjectGenerator } = await import('./generators/project');
             const generator = new ProjectGenerator();
 
             const result = await generator.createProject({
@@ -300,23 +288,14 @@ class CreateC1App {
             const envManager = new EnvironmentManager();
 
             // Use provided API key or get from key manager
-            let apiKey: string;
             if (this.providedApiKey) {
-                apiKey = this.providedApiKey;
                 logger.debug('Using provided API key');
             } else {
                 // Get API key from key manager (normally this would be stored from generateApiKey step)
-                apiKey = 'generated-key-placeholder'; // In real implementation, this would come from secure storage
                 logger.debug('Using generated API key');
             }
 
-            const result = await envManager.setupEnvironment(
-                this.config.projectName,
-                {
-                    apiKey,
-                    projectId: this.config.projectName
-                }
-            );
+            const result = await envManager.setupEnvironment(this.config.projectName);
 
             if (result.success) {
             } else {
@@ -348,58 +327,12 @@ class CreateC1App {
 }
 
 export async function main(): Promise<void> {
+
+
     const app = new CreateC1App();
 
-    try {
-        await app.main();
+    await app.main();
 
-        // Stop async tracking and wait for any remaining operations
-        asyncTracker.stop();
-
-        logger.newLine();
-        logger.info('🔍 Checking for unresolved async operations...');
-
-        // Wait up to 5 seconds for any remaining operations to complete
-        const result = await asyncTracker.waitForCompletion(5000);
-
-        if (result.completed) {
-            logger.success('✅ All async operations completed successfully!');
-        } else {
-            logger.warning(`⚠️  Some async operations are still pending after timeout`);
-
-            // Print detailed report of unresolved operations
-            asyncTracker.printDetailedReport();
-
-            // Wait a bit more to see if anything resolves
-            logger.info('⏳ Waiting additional 2 seconds for operations to complete...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Final check
-            const finalPending = asyncTracker.getPendingAsyncOperations();
-            const finalPromises = asyncTracker.getUnresolvedPromises();
-
-            if (finalPending.length > 0 || finalPromises.length > 0) {
-                logger.newLine();
-                logger.warning('🚨 FINAL REPORT - Unresolved async operations detected:');
-                asyncTracker.printSummaryReport();
-
-                logger.newLine();
-                logger.warning('💡 These unresolved operations may prevent the process from exiting cleanly.');
-                logger.info('Consider investigating the stack traces above to identify the source.');
-            } else {
-                logger.success('🎉 All operations completed after additional wait!');
-            }
-        }
-
-    } catch (error) {
-        asyncTracker.stop();
-        logger.error('❌ Application failed, but checking async operations anyway...');
-        asyncTracker.printDetailedReport();
-        throw error;
-    }
-
-    // Force process exit to prevent hanging from any open handles
-    // process.exit(0);
 }
 
 // Export for testing

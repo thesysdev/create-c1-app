@@ -20,6 +20,7 @@ coverage/
 # Compiled output
 dist/
 build/
+bin/
 
 # Runtime data
 pids

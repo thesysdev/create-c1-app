@@ -23,7 +23,6 @@ export class ProjectGenerator {
 
             logger.debug(`Creating project from template at: ${projectPath}`);
 
-            // Try git clone first, fallback to HTTP download if git is not available
             const downloaded = await this.downloadTemplate(options);
             if (!downloaded) {
                 throw new Error('Failed to download template');
@@ -173,35 +172,10 @@ export class ProjectGenerator {
     private async enhanceProjectStructure(_options: ProjectGenerationOptions, projectPath: string): Promise<void> {
         logger.debug('Enhancing project structure...');
 
-        // Create environment example if it doesn't exist
-        const envExamplePath = path.join(projectPath, '.env.example');
-        try {
-            await fs.promises.access(envExamplePath, fs.constants.F_OK);
-        } catch (error) {
-            logger.debug('No .env.example found, creating one');
-            await this.createEnvironmentExample(projectPath);
-        }
-
-
         // Setup git with proper .gitignore
         await this.setupGit(projectPath);
 
         logger.debug('Project structure enhanced');
-    }
-
-
-    private async createEnvironmentExample(projectPath: string): Promise<void> {
-        const envExample = `
-# API Configuration
-API_ENDPOINT=https://your-api-endpoint.com
-API_KEY=your-api-key-here
-
-# Development
-NODE_ENV=development
-`;
-
-        const envExamplePath = path.join(projectPath, '.env.example');
-        await fs.promises.writeFile(envExamplePath, envExample.trim());
     }
 
     private async setupGit(projectPath: string): Promise<void> {
@@ -222,16 +196,12 @@ NODE_ENV=development
                 const gitignoreContent = await fs.promises.readFile(gitignorePath, 'utf8');
 
                 if (!gitignoreContent.includes('.env')) {
-                    await fs.promises.appendFile(gitignorePath, '\n# Environment variables\n.env\n.env.local\n.env.development.local\n.env.test.local\n.env.production.local\n');
+                    await fs.promises.appendFile(gitignorePath, '\n# Environment variables\n.env\n');
                 }
             } else {
                 const gitignoreContent = `
 # Environment variables
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
 `;
                 await fs.promises.writeFile(gitignorePath, gitignoreContent.trim());
             }
