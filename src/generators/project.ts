@@ -1,0 +1,275 @@
+import execa from 'execa';
+import fs from 'fs';
+import path from 'path';
+import { createReadStream, createWriteStream, } from 'fs';
+
+import logger from '../utils/logger';
+import { ProjectGenerationOptions, StepResult } from '../types/index';
+import { Extract } from 'unzipper';
+
+export class ProjectGenerator {
+    async createProject(options: ProjectGenerationOptions): Promise<StepResult> {
+        try {
+            const projectPath = path.join(options.directory, options.name);
+
+
+            // Check if directory already exists
+            try {
+                await fs.promises.access(projectPath, fs.constants.F_OK);
+                throw new Error(`Directory "${options.name}" already exists`);
+            } catch (error) {
+                // Directory doesn't exist, which is what we want
+            }
+
+            logger.debug(`Creating project from template at: ${projectPath}`);
+
+            // Try git clone first, fallback to HTTP download if git is not available
+            const downloaded = await this.downloadTemplate(options);
+            if (!downloaded) {
+                throw new Error('Failed to download template');
+            }
+
+            // Install dependencies if package.json exists
+            await this.installDependencies(projectPath);
+
+            // Setup project structure enhancements
+            await this.enhanceProjectStructure(options, projectPath);
+
+            return {
+                success: true,
+                data: { projectPath }
+            };
+
+        } catch (error) {
+            logger.debug(`Project creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error occurred'
+            };
+        }
+    }
+
+    private async downloadTemplate(options: ProjectGenerationOptions): Promise<boolean> {
+        // Use HTTP download as the primary method (faster, no dependencies)
+        if (await this.downloadViaHttp(options)) {
+            return true;
+        }
+
+        return false;
+    }
+
+
+    private async downloadViaHttp(options: ProjectGenerationOptions): Promise<boolean> {
+        try {
+            const zipUrl = `https://github.com/thesysdev/${options.template}/archive/refs/heads/main.zip`;
+            const tempZipPath = path.join(options.directory, `${options.template}-temp.zip`);
+            const tempExtractPath = path.join(options.directory, `${options.template}-temp-extract`);
+            const projectPath = path.join(options.directory, options.name);
+
+            logger.debug(`Downloading template from: ${zipUrl}`);
+
+            // Download the zip file
+            await this.downloadFile(zipUrl, tempZipPath);
+
+            // Extract to temporary directory
+            await this.extractZip(tempZipPath, tempExtractPath);
+
+            // Move contents from the extracted template folder to project directory
+            const extractedTemplatePath = path.join(tempExtractPath, `${options.template}-main`);
+
+            // Print all files in extractedTemplatePath
+
+            // Create the project directory
+            await fs.promises.mkdir(projectPath, { recursive: true });
+
+
+            // Copy contents of the extracted template to project directory
+            try {
+                logger.debug(`Copying template contents from ${extractedTemplatePath} to ${projectPath}`);
+                await fs.promises.cp(extractedTemplatePath, projectPath, {
+                    recursive: true,
+                });
+
+            } catch (error) {
+                throw new Error(`Extracted template folder ${extractedTemplatePath} not found`);
+            }
+
+            // Clean up temporary files
+            await fs.promises.rm(tempZipPath, { recursive: true });
+            await fs.promises.rm(tempExtractPath, { recursive: true });
+
+            logger.debug(`Template extracted successfully to: ${projectPath}`);
+            return true;
+        } catch (error) {
+            logger.debug(`HTTP download failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            return false;
+        }
+    }
+
+    private async downloadFile(url: string, destination: string): Promise<void> {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const fileStream = createWriteStream(destination);
+
+        return new Promise<void>((resolve, reject) => {
+            response.body!.pipeTo(
+                new WritableStream({
+                    write(chunk) {
+                        fileStream.write(chunk);
+                    },
+                    close() {
+                        fileStream.end();
+                        resolve();
+                    },
+                    abort(error) {
+                        fileStream.destroy();
+                        reject(error);
+                    }
+                })
+            ).catch(reject);
+        });
+    }
+
+    private async extractZip(zipPath: string, destination: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            createReadStream(zipPath)
+                .pipe(Extract({ path: destination }))
+                .on('finish', resolve)
+                .on('error', reject);
+        });
+    }
+
+    private async installDependencies(projectPath: string): Promise<void> {
+        // Check if package.json exists in the project directory
+        const packageJsonPath = path.join(projectPath, 'package.json');
+        try {
+            await fs.promises.access(packageJsonPath, fs.constants.F_OK);
+
+            logger.debug('package.json found, installing dependencies');
+        } catch (error) {
+            logger.debug('No package.json found, skipping dependency installation');
+            return;
+        }
+
+        logger.debug('Installing dependencies...');
+
+        try {
+            // Install existing dependencies from package.json
+            await execa('npm', ['install'], {
+                cwd: projectPath,
+                stdio: 'pipe'
+            });
+
+            logger.debug('Dependencies installed successfully');
+        } catch (error) {
+            logger.debug(`Warning: Failed to install dependencies: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            // Don't fail the entire process if dependency installation fails
+        }
+    }
+
+    private async enhanceProjectStructure(_options: ProjectGenerationOptions, projectPath: string): Promise<void> {
+        logger.debug('Enhancing project structure...');
+
+        // Create environment example if it doesn't exist
+        const envExamplePath = path.join(projectPath, '.env.example');
+        try {
+            await fs.promises.access(envExamplePath, fs.constants.F_OK);
+        } catch (error) {
+            logger.debug('No .env.example found, creating one');
+            await this.createEnvironmentExample(projectPath);
+        }
+
+
+        // Setup git with proper .gitignore
+        await this.setupGit(projectPath);
+
+        logger.debug('Project structure enhanced');
+    }
+
+
+    private async createEnvironmentExample(projectPath: string): Promise<void> {
+        const envExample = `
+# API Configuration
+API_ENDPOINT=https://your-api-endpoint.com
+API_KEY=your-api-key-here
+
+# Development
+NODE_ENV=development
+`;
+
+        const envExamplePath = path.join(projectPath, '.env.example');
+        await fs.promises.writeFile(envExamplePath, envExample.trim());
+    }
+
+    private async setupGit(projectPath: string): Promise<void> {
+        try {
+            // Ensure environment files are in .gitignore 
+            const gitignorePath = path.join(projectPath, '.gitignore');
+            let gitignoreExists = false;
+
+            try {
+                await fs.promises.access(gitignorePath, fs.constants.F_OK);
+                gitignoreExists = true;
+            } catch (error) {
+                logger.debug('No .gitignore found, creating one');
+                await this.createGitignoreFile(projectPath);
+            }
+
+            if (gitignoreExists) {
+                const gitignoreContent = await fs.promises.readFile(gitignorePath, 'utf8');
+
+                if (!gitignoreContent.includes('.env')) {
+                    await fs.promises.appendFile(gitignorePath, '\n# Environment variables\n.env\n.env.local\n.env.development.local\n.env.test.local\n.env.production.local\n');
+                }
+            } else {
+                const gitignoreContent = `
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+`;
+                await fs.promises.writeFile(gitignorePath, gitignoreContent.trim());
+            }
+
+        } catch (error) {
+            logger.debug(`Git setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            // Git setup failure shouldn't fail the entire project creation
+        }
+    }
+
+    private async createGitignoreFile(projectPath: string): Promise<void> {
+        const gitignoreContent = `
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+`;
+        const gitignorePath = path.join(projectPath, '.gitignore');
+        await fs.promises.writeFile(gitignorePath, gitignoreContent.trim());
+    }
+
+}
+
+export default ProjectGenerator;
