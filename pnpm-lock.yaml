@@ -51,6 +51,9 @@ importers:
       '@types/validate-npm-package-name':
         specifier: ^4.0.2
         version: 4.0.2
+      '@types/yargs':
+        specifier: ^17.0.32
+        version: 17.0.33
       '@typescript-eslint/eslint-plugin':
         specifier: ^6.13.1
         version: 6.21.0(@typescript-eslint/parser@6.21.0(eslint@8.57.1)(typescript@5.9.2))(eslint@8.57.1)(typescript@5.9.2)

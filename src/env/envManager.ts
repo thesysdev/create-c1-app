@@ -1,4 +1,4 @@
-import fs from 'fs-extra'
+import fs from 'fs/promises'
 import path from 'path'
 import logger from '../utils/logger'
 import { type StepResult } from '../types/index'
@@ -9,7 +9,9 @@ export class EnvironmentManager {
       const projectPath = path.join(process.cwd(), projectName)
 
       // Ensure we're in the project directory
-      if (!await fs.pathExists(projectPath)) {
+      try {
+        await fs.access(projectPath)
+      } catch {
         throw new Error(`Project directory "${projectName}" not found`)
       }
 
@@ -19,14 +21,16 @@ export class EnvironmentManager {
 
       let envContent = ''
 
-      if (await fs.pathExists(envPath)) {
+      try {
+        await fs.access(envPath)
+        // File exists, read it
         // Read existing .env file
         const existingContent = await fs.readFile(envPath, 'utf8')
         const lines = existingContent.split('\n')
 
         // Replace existing THESYS_API_KEY or add it
         let apiKeyFound = false
-        const updatedLines = lines.map(line => {
+        const updatedLines = lines.map((line: string) => {
           if (line.startsWith('THESYS_API_KEY=')) {
             apiKeyFound = true
             return apiKeyLine
@@ -41,7 +45,8 @@ export class EnvironmentManager {
 
         envContent = updatedLines.join('\n')
         logger.debug(`Updated existing .env file with API key at ${envPath}`)
-      } else {
+      } catch {
+        // File doesn't exist, create new one
         // Create new .env file
         envContent = apiKeyLine + '\n'
         logger.debug(`Created new .env file with API key at ${envPath}`)
