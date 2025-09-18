@@ -1,75 +1,63 @@
-
-import fs from 'fs-extra';
-import path from 'path';
-// import keytar from 'keytar';
-import logger from '../utils/logger';
-import SpinnerManager from '../utils/spinner';
-import { EnvironmentConfig, StepResult } from '../types/index';
+import fs from 'fs-extra'
+import path from 'path'
+import logger from '../utils/logger'
+import { type StepResult } from '../types/index'
 
 export class EnvironmentManager {
-    private spinner: SpinnerManager;
-    // private serviceName = 'create-c1-app';
+  async setupEnvironment (projectName: string, apiKey: string): Promise<StepResult> {
+    try {
+      const projectPath = path.join(process.cwd(), projectName)
 
-    constructor() {
-        this.spinner = new SpinnerManager();
-    }
+      // Ensure we're in the project directory
+      if (!await fs.pathExists(projectPath)) {
+        throw new Error(`Project directory "${projectName}" not found`)
+      }
 
-    async setupEnvironment(projectName: string, config: EnvironmentConfig): Promise<StepResult> {
-        try {
-            const projectPath = path.join(process.cwd(), projectName);
+      // Create or update .env file with API key
+      const envPath = path.join(projectPath, '.env')
+      const apiKeyLine = `THESYS_API_KEY=${apiKey}`
 
-            console.log(projectPath);
+      let envContent = ''
 
-            // Ensure we're in the project directory
-            if (!await fs.pathExists(projectPath)) {
-                throw new Error(`Project directory "${projectName}" not found`);
-            }
+      if (await fs.pathExists(envPath)) {
+        // Read existing .env file
+        const existingContent = await fs.readFile(envPath, 'utf8')
+        const lines = existingContent.split('\n')
 
-            // Create environment configuration
-            await this.createEnvironmentFiles(config.apiKey, config, projectPath);
+        // Replace existing THESYS_API_KEY or add it
+        let apiKeyFound = false
+        const updatedLines = lines.map(line => {
+          if (line.startsWith('THESYS_API_KEY=')) {
+            apiKeyFound = true
+            return apiKeyLine
+          }
+          return line
+        })
 
-            return { success: true };
-
-        } catch (error) {
-            logger.debug(`Environment setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Failed to setup environment'
-            };
+        if (!apiKeyFound) {
+          // Add the API key if it wasn't found
+          updatedLines.push(apiKeyLine)
         }
+
+        envContent = updatedLines.join('\n')
+        logger.debug(`Updated existing .env file with API key at ${envPath}`)
+      } else {
+        // Create new .env file
+        envContent = apiKeyLine + '\n'
+        logger.debug(`Created new .env file with API key at ${envPath}`)
+      }
+
+      await fs.writeFile(envPath, envContent)
+
+      return { success: true }
+    } catch (error) {
+      logger.debug(`Environment setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to setup environment'
+      }
     }
-
-
-    // private async getStoredApiKey(): Promise<string | null> {
-    //     try {
-    //         const apiKey = await keytar.getPassword(this.serviceName, 'api-key');
-    //         return apiKey;
-    //     } catch (error) {
-    //         logger.debug(`Failed to retrieve stored API key: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    //         return null;
-    //     }
-    // }
-
-    private async createEnvironmentFiles(apiKey: string, _config: EnvironmentConfig, projectPath: string): Promise<void> {
-        this.spinner.start('Creating environment files...');
-
-        // Create .env file with environment variables
-        const envContent = `# API Configuration
-THESYS_API_KEY=${apiKey}
-# Environment
-NODE_ENV=development
-`;
-
-        const envFilePath = path.join(projectPath, '.env');
-        await fs.writeFile(envFilePath, envContent);
-
-        this.spinner.succeed('Environment files created');
-
-        logger.debug('.env file');
-    }
-
-
-
+  }
 }
 
-export default EnvironmentManager;
+export default EnvironmentManager

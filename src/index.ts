@@ -1,414 +1,345 @@
-import { input } from '@inquirer/prompts';
-import yargs from 'yargs';
-import { hideBin } from 'yargs/helpers';
-import logger from './utils/logger';
-import SpinnerManager from './utils/spinner';
-import { Validator } from './utils/validation';
-import { asyncTracker } from './utils/asyncTracker';
-import { CLIOptions, CreateC1AppConfig } from './types/index';
+import { input } from '@inquirer/prompts'
+import yargs from 'yargs'
+import { hideBin } from 'yargs/helpers'
+import logger from './utils/logger'
+import SpinnerManager from './utils/spinner'
+import * as Validator from './utils/validation'
+import { type CLIOptions, type CreateC1AppConfig } from './types/index'
+import { ProjectGenerator } from './generators/project'
+import { EnvironmentManager } from './env/envManager'
+import telemetry from './utils/telemetry'
 
+const TOTAL_STEPS = 3
 class CreateC1App {
-    private spinner: SpinnerManager;
-    private config: CreateC1AppConfig;
+  private readonly spinner: SpinnerManager
+  private config: CreateC1AppConfig
 
-    private providedApiKey?: string;
-
-    constructor() {
-        this.spinner = new SpinnerManager();
-        this.config = {
-            projectName: '',
-            template: 'app'
-        };
+  constructor () {
+    this.spinner = new SpinnerManager()
+    this.config = {
+      projectName: '',
+      template: 'app'
     }
+  }
 
-    async main(): Promise<void> {
-        try {
-            // Parse CLI arguments first to check for debug mode
-            const options = await this.parseArguments();
+  async main (): Promise<void> {
+    try {
+      // Parse CLI arguments first to check for debug mode
+      const options = await this.parseArguments()
 
-            // Start async tracking before any other async operations
-            asyncTracker.start();
+      // If we get here, it means help/version weren't called (they would have exited)
 
-            if (options.debug) {
-                logger.info('🔍 Debug mode enabled - async tracking started');
-            }
+      if (options.debug === true) {
+        logger.debugMode = true
+        logger.info('🔍 Debug mode enabled ')
+      }
 
-            logger.info('🧙‍♂️ Welcome to Create C1 App!');
-            logger.newLine();
+      // Handle telemetry disable option
+      if (options.disableTelemetry === true) {
+        telemetry.disableTelemetry()
+        logger.info('📊 Telemetry disabled for this session')
+      }
 
-            // Store provided API key if given and validate it, or prompt for one
-            if (options.apiKey) {
-                if (options.apiKey.trim().length === 0) {
-                    throw new Error('API key cannot be empty');
-                }
-                this.providedApiKey = options.apiKey.trim();
-                logger.info(`🔑 Using provided API key: ${this.providedApiKey.substring(0, 8)}...`);
-            } else {
-                // Prompt user to generate and provide API key
-                this.providedApiKey = await this.promptForApiKey();
-            }
+      // Track app start
+      await telemetry.track('started_create_c1_app')
 
-            // Show welcome message and steps
-            this.showWelcome();
+      logger.info('🧙‍♂️ Welcome to Create C1 App!')
+      logger.newLine()
 
-            // Step 1: Gather project configuration
-            await this.gatherProjectConfig(options);
+      // Show welcome message and steps
+      this.showWelcome()
 
-            // Step 2: Create project
-            await this.createProject();
+      // Store provided API key if given and validate it, or prompt for one
+      let apiKey = ''
+      if (options.apiKey !== undefined && options.apiKey !== null && options.apiKey.trim().length > 0) {
+        apiKey = options.apiKey.trim()
+        logger.info(`🔑 Using provided API key: ${apiKey.substring(0, 8)}...`)
+      } else {
+        // Prompt user to generate and provide API key
+        apiKey = await this.promptForApiKey()
+      }
 
-            // Step 3: Authenticate user (skip if API key provided)
-            if (!this.providedApiKey) {
-                // await this.authenticateUser();
-                // // Step 4: Generate API key (skip if API key provided)
-                // await this.generateApiKey();
-            }
+      await telemetry.track('provided_api_key')
 
-            // Step 5: Setup environment with dotenv
-            await this.setupEnvironment();
+      // Step 1: Gather project configuration
+      await this.gatherProjectConfig(options)
 
-            // Success message
-            this.showSuccessMessage();
+      // Step 2: Create project
+      await this.createProject()
 
-        } catch (error) {
-            logger.error(`Create C1 App failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-            process.exit(1);
+      // Step 3: Setup environment with dotenv
+      await this.setupEnvironment(apiKey)
+
+      // Track successful completion
+      await telemetry.track('completed_create_c1_app', {
+        template: this.config.template,
+      })
+
+      // Success message
+      this.showSuccessMessage()
+
+      // Flush and shutdown telemetry before exit
+      await telemetry.flush()
+      await telemetry.shutdown()
+      this.spinner.stop()
+    } catch (error) {
+      // Track error
+      await telemetry.track('failed_create_c1_app', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
+
+      // Flush and shutdown telemetry before exit
+      await telemetry.flush()
+      await telemetry.shutdown()
+
+      logger.error(`Create C1 App failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      process.exit(1)
+    }
+  }
+
+  private async parseArguments (): Promise<CLIOptions> {
+    const argv = await yargs(hideBin(process.argv))
+      .scriptName('create-c1-app')
+      .usage('Usage: $0 [options]')
+      .option('project-name', {
+        alias: 'n',
+        type: 'string',
+        description: 'Name of the project to create'
+      })
+      .option('template', {
+        alias: 't',
+        type: 'string',
+        choices: ['app', 'pages'] as const,
+        description: 'Next.js template to use'
+      })
+      .option('debug', {
+        alias: 'd',
+        type: 'boolean',
+        description: 'Enable debug logging'
+      })
+      .option('api-key', {
+        alias: 'k',
+        type: 'string',
+        description: 'API key to use (skips authentication and key generation)'
+      })
+      .option('disable-telemetry', {
+        type: 'boolean',
+        description: 'Disable anonymous telemetry collection',
+        default: false
+      })
+      .help('help', 'Show help')
+      .alias('help', 'h')
+      .version('version', 'Show version number')
+      .alias('version', 'v')
+      .exitProcess(true)
+      .parseAsync()
+
+    return argv as CLIOptions
+  }
+
+  private async promptForApiKey (): Promise<string> {
+    logger.newLine()
+    logger.info('🔑 API Key Required')
+    logger.newLine()
+    logger.info('To use Create C1 App, you need a Thesys API key.')
+    logger.info('Follow these steps to generate one:')
+    logger.newLine()
+    logger.info('1. 🌐 Visit: https://console.thesys.dev/keys')
+    logger.info('2. 🔐 Sign in to your Thesys account')
+    logger.info('3. 🆕 Click "Create New API Key"')
+    logger.info('4. 📝 Give your key a descriptive name')
+    logger.info('5. 📋 Copy the generated API key')
+    logger.newLine()
+    logger.info('💡 Tip: Keep your API key secure and never share it publicly!')
+    logger.newLine()
+
+    await telemetry.track('prompted_for_api_key')
+
+    const apiKey = await input({
+      message: 'Please paste your API key here:',
+      validate: (input: string) => {
+        if (input === undefined || input.trim().length === 0) {
+          return 'API key cannot be empty. Please paste your API key.'
         }
-    }
-
-    private async parseArguments(): Promise<CLIOptions> {
-        const argv = await yargs(hideBin(process.argv))
-            .option('project-name', {
-                alias: 'n',
-                type: 'string',
-                description: 'Name of the project to create'
-            })
-            .option('template', {
-                alias: 't',
-                type: 'string',
-                choices: ['app', 'pages'] as const,
-                description: 'Next.js template to use'
-            })
-            .option('debug', {
-                alias: 'd',
-                type: 'boolean',
-                description: 'Enable debug logging'
-            })
-            .option('api-key', {
-                alias: 'k',
-                type: 'string',
-                description: 'API key to use (skips authentication and key generation)'
-            })
-            .help()
-            .version()
-            .argv;
-
-        return argv as CLIOptions;
-    }
-
-    private async promptForApiKey(): Promise<string> {
-        logger.newLine();
-        logger.info('🔑 API Key Required');
-        logger.newLine();
-        logger.info('To use Create C1 App, you need a Thesys API key.');
-        logger.info('Follow these steps to generate one:');
-        logger.newLine();
-        logger.info('1. 🌐 Visit: https://console.thesys.dev/keys');
-        logger.info('2. 🔐 Sign in to your Thesys account');
-        logger.info('3. 🆕 Click "Create New API Key"');
-        logger.info('4. 📝 Give your key a descriptive name');
-        logger.info('5. 📋 Copy the generated API key');
-        logger.newLine();
-        logger.info('💡 Tip: Keep your API key secure and never share it publicly!');
-        logger.newLine();
-
-        const apiKey = await input({
-            message: 'Please paste your API key here:',
-            validate: (input: string) => {
-                if (!input || input.trim().length === 0) {
-                    return 'API key cannot be empty. Please paste your API key.';
-                }
-                if (input.trim().length < 10) {
-                    return 'API key seems too short. Please check and paste the complete key.';
-                }
-                return true;
-            },
-            transformer: (input: string) => {
-                // Hide most of the API key for security, showing only first few chars
-                return input.length > 8 ? `${input.substring(0, 8)}${'*'.repeat(Math.min(input.length - 8, 32))}` : input;
-            }
-        });
-
-        const trimmedKey = apiKey.trim();
-        logger.info(`🔑 API key received: ${trimmedKey.substring(0, 8)}...`);
-        logger.newLine();
-
-        return trimmedKey;
-    }
-
-    private showWelcome(): void {
-        logger.info('This tool will help you:');
-        logger.info('  1. Create a new Thesys project');
-
-        if (this.providedApiKey) {
-            logger.info('  2. Setup environment with provided API key');
-        } else {
-            logger.info('  2. Authenticate and generate an API key');
-            logger.info('  3. Setup environment with dotenv');
+        if (input.trim().length < 10) {
+          return 'API key seems too short. Please check and paste the complete key.'
         }
+        return true
+      },
+      transformer: (input: string) => {
+        // Hide most of the API key for security, showing only first few chars
+        return input.length > 8 ? `${input.substring(0, 8)}${'*'.repeat(Math.min(input.length - 8, 32))}` : input
+      }
+    })
 
-        logger.newLine();
-    }
+    const trimmedKey = apiKey.trim()
+    logger.info(`🔑 API key received: ${trimmedKey.substring(0, 8)}****`)
+    logger.newLine()
 
-    private async gatherProjectConfig(options: CLIOptions): Promise<void> {
-        const totalSteps = this.providedApiKey ? 3 : 5;
-        logger.step(1, totalSteps, 'Project Configuration');
+    return trimmedKey
+  }
 
-        let projectName = options.projectName;
-        let template = options.template;
+  private showWelcome (): void {
+    logger.info('This tool will help you:')
+    logger.info('  1. Create a new Thesys project')
+    logger.info('  2. Authenticate and generate an API key')
+    logger.info('  3. Setup environment')
 
-        // Project name
-        if (!projectName) {
-            projectName = await input({
-                message: 'What is your project name?',
-                default: 'thesys-project',
-                prefill: 'editable',
-                validate: (input: string) => {
-                    const validation = Validator.validateProjectName(input);
-                    if (!validation.isValid) {
-                        return validation.errors[0];
-                    }
-                    return true;
-                },
-                transformer: (input: string) => Validator.sanitizeProjectName(input)
-            });
+    logger.newLine()
+  }
+
+  private async gatherProjectConfig (options: CLIOptions): Promise<void> {
+    logger.step(1, TOTAL_STEPS, 'Project Configuration')
+
+    let projectName = options.projectName
+    const template = 'template-c1-component-next'
+
+    // Project name
+    projectName ??= await input({
+      message: 'What is your project name?',
+      default: 'thesys-project',
+      prefill: 'editable',
+      validate: (input: string) => {
+        const validation = Validator.validateProjectName(input)
+        if (!validation.isValid) {
+          return validation.errors[0]
         }
+        return true
+      },
+      transformer: (input: string) => Validator.sanitizeProjectName(input)
+    })
 
-        // Template selection
-        if (!template) {
-            template = 'template-c1-component-next';
-            // TODO: Add other templates
-            // template = await select<string>({
-            //     message: 'Which Next.js template would you like to use?',
-            //     choices: [
-            //         { name: 'Quickstart (Recommended)', value: 'template-c1-next' },
-            //         { name: 'Autogen', value: 'examples/autogen' }
-            //     ],
-            //     default: 'template-c1-next'
-            // });
-        }
-
-        // Update config with answers and CLI options
-        this.config = {
-            projectName,
-            template
-        };
-
-        logger.success(`Project "${this.config.projectName}" will be created with:`);
-        logger.info(`  Template: ${this.config.template} `);
-        logger.newLine();
+    // Update config with answers and CLI options
+    this.config = {
+      projectName,
+      template
     }
 
-    private async createProject(): Promise<void> {
-        const totalSteps = this.providedApiKey ? 3 : 5;
-        logger.step(2, totalSteps, 'Creating template');
+    // Track project configuration
+    await telemetry.track('project_configured',{
+        template: this.config.template
+    })
 
-        this.spinner.start('Setting up your template...');
+    logger.success(`Project "${this.config.projectName}" will be created with:`)
+    logger.info(`  Template: ${this.config.template} `)
+    logger.newLine()
+  }
 
-        try {
-            // Import and use project generator
-            const { ProjectGenerator } = await import('./generators/project');
-            const generator = new ProjectGenerator();
+  private async createProject (): Promise<void> {
+    logger.step(2, TOTAL_STEPS, 'Creating template')
 
-            const result = await generator.createProject({
-                name: this.config.projectName,
-                template: this.config.template,
-                directory: process.cwd()
-            });
-
-            if (result.success) {
-                this.spinner.succeed('Template created successfully!');
-            } else {
-                throw new Error(result.error || 'Failed to create template');
-            }
-        } catch (error) {
-            this.spinner.fail('Failed to create template');
-            throw error;
-        }
-
-        logger.newLine();
-    }
-
-    // private async authenticateUser(): Promise<void> {
-    //     logger.step(3, 5, 'User Authentication');
-
-    //     try {
-    //         // Import and use authenticator
-    //         const { Authenticator } = await import('./auth/authenticator');
-    //         const auth = new Authenticator();
-
-    //         const result = await auth.authenticate();
-
-    //         if (result.success) {
-    //             logger.success('Authentication successful!');
-    //         } else {
-    //             throw new Error(result.error || 'Authentication failed');
-    //         }
-    //     } catch (error) {
-    //         logger.error('Authentication failed');
-    //         throw error;
-    //     }
-
-    //     logger.newLine();
-    // }
-
-    // private async generateApiKey(): Promise<void> {
-    //     logger.step(4, 5, 'API Key Generation');
-
-    //     this.spinner.start('Generating your API key...');
-
-    //     try {
-    //         // Import and use key manager
-    //         const { KeyManager } = await import('./api/keyManager');
-    //         const keyManager = new KeyManager();
-
-    //         const result = await keyManager.generateKey(this.config.projectName);
-
-    //         if (result.success) {
-    //             this.spinner.succeed('API key generated successfully!');
-    //         } else {
-    //             throw new Error(result.error || 'Failed to generate API key');
-    //         }
-    //     } catch (error) {
-    //         this.spinner.fail('Failed to generate API key');
-    //         throw error;
-    //     }
-
-    //     logger.newLine();
-    // }
-
-    private async setupEnvironment(): Promise<void> {
-        const totalSteps = this.providedApiKey ? 3 : 5;
-        const currentStep = this.providedApiKey ? 3 : 5;
-        logger.step(currentStep, totalSteps, 'Environment Setup');
-
-        this.spinner.start('Setting up environment...');
-
-        try {
-            // Import and use environment manager
-            const { EnvironmentManager } = await import('./env/envManager');
-            const envManager = new EnvironmentManager();
-
-            // Use provided API key or get from key manager
-            let apiKey: string;
-            if (this.providedApiKey) {
-                apiKey = this.providedApiKey;
-                logger.debug('Using provided API key');
-            } else {
-                // Get API key from key manager (normally this would be stored from generateApiKey step)
-                apiKey = 'generated-key-placeholder'; // In real implementation, this would come from secure storage
-                logger.debug('Using generated API key');
-            }
-
-            const result = await envManager.setupEnvironment(
-                this.config.projectName,
-                {
-                    apiKey,
-                    projectId: this.config.projectName
-                }
-            );
-
-            if (result.success) {
-            } else {
-                throw new Error(result.error || 'Failed to setup environment');
-            }
-
-            this.spinner.succeed('Environment setup completed');
-        } catch (error) {
-            this.spinner.fail('Failed to setup environment');
-            throw error;
-        }
-
-        logger.newLine();
-    }
-
-    private showSuccessMessage(): void {
-        logger.success('🎉 Create C1 App completed successfully!');
-        logger.info('Your API credentials are stored in .env file.');
-        logger.newLine();
-
-        logger.info('Your project is ready! Next steps:');
-        logger.info(`  1. cd ${this.config.projectName}`);
-        logger.info('  2. npm run dev');
-        logger.newLine();
-
-        logger.info('Happy coding! 🚀');
-        logger.newLine();
-    }
-}
-
-export async function main(): Promise<void> {
-    const app = new CreateC1App();
+    this.spinner.start('Setting up your template...')
 
     try {
-        await app.main();
+      const generator = new ProjectGenerator()
 
-        // Stop async tracking and wait for any remaining operations
-        asyncTracker.stop();
+      const result = await generator.createProject({
+        name: this.config.projectName,
+        template: this.config.template,
+        directory: process.cwd()
+      })
 
-        logger.newLine();
-        logger.info('🔍 Checking for unresolved async operations...');
-
-        // Wait up to 5 seconds for any remaining operations to complete
-        const result = await asyncTracker.waitForCompletion(5000);
-
-        if (result.completed) {
-            logger.success('✅ All async operations completed successfully!');
-        } else {
-            logger.warning(`⚠️  Some async operations are still pending after timeout`);
-
-            // Print detailed report of unresolved operations
-            asyncTracker.printDetailedReport();
-
-            // Wait a bit more to see if anything resolves
-            logger.info('⏳ Waiting additional 2 seconds for operations to complete...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Final check
-            const finalPending = asyncTracker.getPendingAsyncOperations();
-            const finalPromises = asyncTracker.getUnresolvedPromises();
-
-            if (finalPending.length > 0 || finalPromises.length > 0) {
-                logger.newLine();
-                logger.warning('🚨 FINAL REPORT - Unresolved async operations detected:');
-                asyncTracker.printSummaryReport();
-
-                logger.newLine();
-                logger.warning('💡 These unresolved operations may prevent the process from exiting cleanly.');
-                logger.info('Consider investigating the stack traces above to identify the source.');
-            } else {
-                logger.success('🎉 All operations completed after additional wait!');
-            }
-        }
-
+      if (result.success) {
+        this.spinner.succeed('Template created successfully!')
+        // Track successful project creation
+        await telemetry.track('project_created', {
+          template: this.config.template,
+        })
+      } else {
+        throw new Error(result.error ?? 'Failed to create template')
+      }
     } catch (error) {
-        asyncTracker.stop();
-        logger.error('❌ Application failed, but checking async operations anyway...');
-        asyncTracker.printDetailedReport();
-        throw error;
+      this.spinner.fail('Failed to create template')
+
+      // Track project creation error
+      await telemetry.track('project_creation_error', {
+        template: this.config.template,
+      })
+
+      throw error
     }
 
-    // Force process exit to prevent hanging from any open handles
-    // process.exit(0);
+    logger.newLine()
+  }
+
+  private async setupEnvironment (apiKey: string): Promise<void> {
+    logger.step(3, TOTAL_STEPS, 'Environment Setup')
+
+    this.spinner.start('Setting up environment...')
+
+    try {
+      const envManager = new EnvironmentManager()
+
+      const result = await envManager.setupEnvironment(this.config.projectName, apiKey)
+
+      if (result.success) {
+        // Track successful environment setup
+        await telemetry.track('environment_setup_completed')
+      } else {
+        throw new Error(result.error ?? 'Failed to setup environment')
+      }
+
+      this.spinner.succeed('Environment setup completed')
+    } catch (error) {
+      this.spinner.fail('Failed to setup environment')
+
+      // Track environment setup error
+      await telemetry.track('environment_setup_error')
+
+      throw error
+    }
+
+    logger.newLine()
+  }
+
+  private showSuccessMessage (): void {
+    logger.success('🎉 Create C1 App completed successfully!')
+    logger.info('Your API key is stored in .env file.')
+    logger.newLine()
+
+    logger.info('Your project is ready! Next steps:')
+    logger.info(`  1. cd ${this.config.projectName}`)
+    logger.info('  2. npm run dev')
+    logger.newLine()
+
+    logger.info('Happy coding! 🚀')
+    logger.newLine()
+  }
 }
 
+export async function main (): Promise<void> {
+  const app = new CreateC1App()
+
+  await app.main()
+}
+
+// Handle process exit to ensure telemetry is flushed
+process.on('exit', () => {
+  // Note: We can't use async operations in exit handler
+  // Telemetry should be flushed in main() before exit
+})
+
+process.on('SIGINT', async () => {
+  console.log('\n\n👋 Goodbye!')
+  await telemetry.flush()
+  await telemetry.shutdown()
+  process.exit(0)
+})
+
+process.on('SIGTERM', async () => {
+  await telemetry.flush()
+  await telemetry.shutdown()
+  process.exit(0)
+})
+
 // Export for testing
-export { CreateC1App };
+export { CreateC1App }
 
 // Execute main function when run directly
 if (require.main === module) {
-    main().catch((error) => {
-        console.error('Error:', error.message);
-        process.exit(1);
-    });
+  main().catch((error) => {
+    console.error('Error:', error.message)
+    process.exit(1)
+  })
 }
