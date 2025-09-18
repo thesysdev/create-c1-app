@@ -1,11 +1,11 @@
 {
-    "name": "create-c1-app",
-    "version": "1.1.0",
+    "name": "@thesysdev/create-c1-app",
+    "version": "1.0.0",
     "description": "A CLI tool that creates C1 projects with API authentication",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "bin": {
-        "create-c1-app": "./bin/create-c1-app"
+        "create-c1-app": "bin/create-c1-app"
     },
     "scripts": {
         "build": "tsc",
@@ -59,7 +59,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/thesysdev/create-c1-app.git"
+        "url": "git+https://github.com/thesysdev/create-c1-app.git"
     },
     "bugs": {
         "url": "https://github.com/thesysdev/create-c1-app/issues"
