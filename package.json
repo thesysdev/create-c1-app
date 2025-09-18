@@ -1,6 +1,6 @@
 {
-    "name": "@thesysdev/create-c1-app",
-    "version": "1.0.0",
+    "name": "create-c1-app",
+    "version": "1.1.1",
     "description": "A CLI tool that creates C1 projects with API authentication",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
@@ -12,7 +12,6 @@
         "dev": "ts-node src/index.ts",
         "start": "node bin/create-c1-app",
         "prepublishOnly": "npm run build",
-        "publish": "npm publish",
         "test": "jest",
         "test:watch": "jest --watch",
         "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app'",
