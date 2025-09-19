@@ -28,8 +28,7 @@ export class TelemetryManager {
     private distinctId: string
 
     constructor() {
-        // PostHog project key - replace with your actual project key
-        this.projectKey = 'phc_OBBbu3I1ayLjFFxIECXcljhqJaLMFOIBmEgxnglSNAP'
+        this.projectKey = 'phc_3OLW53x09ZTVZSV6BEpj5uycj3ooqR6KOemOjx04e3D'
 
         this.deviceInfo = this.collectDeviceInfo()
         this.isEnabled = this.checkTelemetryEnabled()
