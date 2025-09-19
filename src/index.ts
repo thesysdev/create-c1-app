@@ -108,10 +108,7 @@ class CreateC1App {
             this.spinner.stop()
         } catch (error) {
             // Track error
-            await telemetry.track('failed_create_c1_app', {
-                error: error instanceof Error ? error.message : 'Unknown error',
-                stack: error instanceof Error ? error.stack : undefined
-            })
+            await telemetry.track('failed_create_c1_app')
 
             // Flush and shutdown telemetry before exit
             await telemetry.flush()

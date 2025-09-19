@@ -6,7 +6,7 @@ import logger from './logger'
 
 export interface TelemetryEvent {
     event: string
-    properties?: Record<string, any>
+    properties?: Record<string, string | number | boolean | null>
     userId?: string
 }
 
@@ -101,7 +101,7 @@ export class TelemetryManager {
         }
     }
 
-    public async track(eventName: string, properties: Record<string, any> = {}): Promise<void> {
+    public async track(eventName: string, properties: Record<string, string | number | boolean | null> = {}): Promise<void> {
         if (this.isEnabledStatus() === false) {
             return
         }

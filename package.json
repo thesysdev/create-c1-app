@@ -12,8 +12,6 @@
         "dev": "ts-node src/index.ts",
         "start": "node bin/create-c1-app",
         "prepublishOnly": "npm run build",
-        "test": "jest",
-        "test:watch": "jest --watch",
         "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app'",
         "lint:fix": "eslint 'src/**/*.ts' 'bin/create-c1-app' --fix"
     },
