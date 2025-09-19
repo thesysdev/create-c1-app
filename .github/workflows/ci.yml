@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} with Node ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: [20.9, 22, 24]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linting
+        run: pnpm run lint
+
+      - name: Run type checking
+        run: pnpm run build
+
+      - name: Run tests
+        run: pnpm run test
+        env:
+          CI: true
+
+      - name: Test CLI execution (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          pnpm run build
+          node bin/create-c1-app --project-name my-thesys-component --template template-c1-component-next --api-key your-api-key-here
+
+      - name: Test CLI execution (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          pnpm run build
+          node bin/create-c1-app --project-name my-thesys-component --template template-c1-component-next --api-key your-api-key-here
+        shell: cmd

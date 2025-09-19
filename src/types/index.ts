@@ -43,6 +43,7 @@ export interface EnvironmentConfig {
 
 export interface CLIOptions {
   projectName?: string
+  template?: 'template-c1-component-next' | 'template-c1-next'
   debug?: boolean
   apiKey?: string
   disableTelemetry?: boolean
