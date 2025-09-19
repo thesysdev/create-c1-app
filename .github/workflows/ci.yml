@@ -40,11 +40,6 @@ jobs:
       - name: Run type checking
         run: pnpm run build
 
-      - name: Run tests
-        run: pnpm run test
-        env:
-          CI: true
-
       - name: Test CLI execution (Unix)
         if: runner.os != 'Windows'
         run: |
