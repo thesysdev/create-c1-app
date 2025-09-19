@@ -49,7 +49,7 @@ export interface CLIOptions {
   disableTelemetry?: boolean
 }
 
-export interface StepResult<T = any> {
+export interface StepResult<T = unknown> {
   success: boolean
   data?: T
   error?: string
