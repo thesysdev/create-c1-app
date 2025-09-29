@@ -1,5 +1,5 @@
 import http from 'http'
-import {fetchUserInfo, discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, type Configuration,allowInsecureRequests } from 'openid-client'
+import {discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, Configuration } from 'openid-client'
 import logger from '../utils/logger'
 import { type StepResult } from '../types/index'
 import open from 'open'
@@ -33,7 +33,10 @@ export class Authenticator {
   }
 
   getClientConfig(): Configuration {
-    return this.clientConfig!
+    if (!this.clientConfig) {
+      throw new Error('Client not initialized. Call initialize() first.')
+    }
+    return this.clientConfig
   }
 
   /**
@@ -45,11 +48,7 @@ export class Authenticator {
     this.clientConfig = await discovery(
       new URL(this.config.issuerUrl),
       this.config.clientId,
-      undefined,
-      undefined,
-      {
-        execute: [allowInsecureRequests]
-      }
+
     )
 
     logger.debug('✅ Authorization server discovered successfully')
@@ -107,8 +106,6 @@ export class Authenticator {
 
       // Create a temporary HTTP server to handle the callback
       const server = http.createServer(async (req, res) => {
-        if (serverClosed) return
-
         try {
           if (req.url?.startsWith('/cb')) {
             logger.debug('📨 Received callback from authorization server')
@@ -153,7 +150,7 @@ export class Authenticator {
             }
 
             // Send success response to browser
-            res.writeHead(200, { 'Content-Type': 'text/html' })
+            res.writeHead(200, { 'Content-Type': 'text/html', 'Connection': 'close' })
             res.end(`
               <!DOCTYPE html>
               <html>
@@ -182,7 +179,7 @@ export class Authenticator {
 
           } else {
             // Handle other requests
-            res.writeHead(404)
+            res.writeHead(404, { 'Connection': 'close' })
             res.end('Not found')
           }
         } catch (error) {
@@ -190,7 +187,7 @@ export class Authenticator {
           logger.error(`Token exchange failed: ${errorMessage}`)
 
           // Send error response to browser
-          res.writeHead(200, { 'Content-Type': 'text/html' })
+          res.writeHead(200, { 'Content-Type': 'text/html', 'Connection': 'close' })
           res.end(`
             <!DOCTYPE html>
             <html>
@@ -265,7 +262,7 @@ export class Authenticator {
           logger.newLine()
           
           // Open browser with authorization URL
-          await open(authorizationUrl.toString(), { wait: false })
+          await open(authorizationUrl.toString())
           
           logger.info('⏳ Waiting for authentication to complete...')
           logger.info('   Please complete the authentication in your browser.')
@@ -290,37 +287,6 @@ export class Authenticator {
         }
       }, 5 * 60 * 1000) // 5 minutes timeout
     })
-  }
-
-  /**
-   * Validate an access token (simplified for demo purposes)
-   */
-  async validateToken(_accessToken: string): Promise<StepResult<Record<string, unknown>>> {
-    if (!this.clientConfig) {
-      return { 
-        success: false, 
-        error: 'Client not initialized. Call initialize() first.' 
-      }
-    }
-
-    try {
-      logger.debug('🔍 Validating access token...')
-      
-      // For demonstration purposes, we'll just return success
-      // In a real implementation, you'd call the userinfo endpoint
-      logger.debug('✅ Token validation not implemented in demo')
-      
-      return { success: true, data: { valid: true } }
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      logger.debug(`Token validation failed: ${errorMessage}`)
-      
-      return { 
-        success: false, 
-        error: `Token validation failed: ${errorMessage}` 
-      }
-    }
   }
 }
 

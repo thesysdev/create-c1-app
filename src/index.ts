@@ -8,9 +8,41 @@ import { type CLIOptions, type CreateC1AppConfig, type AuthenticationResult } fr
 import { ProjectGenerator } from './generators/project'
 import { EnvironmentManager } from './env/envManager'
 import telemetry from './utils/telemetry'
-import Authenticator from './auth/authenticator'
 import { fetchUserInfo } from 'openid-client'
+import Authenticator from './auth/authenticator'
 
+const THESYS_API_URL = 'https://api.app.thesys.dev'
+const THESYS_ISSUER_URL = 'https://api.app.thesys.dev/oidc'
+const THESYS_CLIENT_ID = 'create-c1-app'
+
+
+// HTTP request helper function
+async function makeHttpRequest(url: string, headers?: Record<string, string>, data?: string): Promise<{ statusCode: number; body: string }> {
+    const fetchOptions: RequestInit = {
+        method: data ? 'POST' : 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...headers
+        }
+    }
+
+    if (data) {
+        fetchOptions.body = data
+    }
+
+    try {
+        const response = await fetch(url, fetchOptions)
+        const body = await response.text()
+
+        return {
+            statusCode: response.status,
+            body
+        }
+    } catch (error) {
+        throw new Error(`HTTP request failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+}
 
 // Check Node.js version before doing anything else
 function checkNodeVersion(): void {
@@ -93,8 +125,6 @@ class CreateC1App {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
                     logger.error(`Authentication failed: ${errorMessage}`)
                     logger.newLine()
-
-                    process.exit(1)
                     
                     // Fallback to manual API key input
                     logger.info('💡 Falling back to manual API key input...')
@@ -164,6 +194,11 @@ class CreateC1App {
                 type: 'string',
                 description: 'API key to use (skips authentication and key generation)'
             })
+            .option('skip-auth', {
+                type: 'boolean',
+                description: 'Skip authentication and key generation',
+                default: false
+            })
             .option('disable-telemetry', {
                 type: 'boolean',
                 description: 'Disable anonymous telemetry collection',
@@ -227,8 +262,8 @@ class CreateC1App {
         
         // Configuration for Thesys OAuth (these would be real values in production)
         const authConfig = {
-            issuerUrl: process.env.THESYS_ISSUER_URL || 'http://localhost:3101/oidc',
-            clientId: process.env.THESYS_CLIENT_ID || 'create-c1-app'
+            issuerUrl: THESYS_ISSUER_URL,
+            clientId: THESYS_CLIENT_ID
         }
         
         const authenticator = new Authenticator(authConfig)
@@ -260,18 +295,51 @@ class CreateC1App {
          const orgId = (userInfoResponse['org_claims'] as {orgId: string}[])?.[0]?.orgId
          logger.debug(`Org ID: ${orgId}`)
 
-         // Generate API key using the authenticated credentials
-         logger.info('🔑 Generating API key...')
-         const apiKey = `thesys_${accessToken?.substring(0, 32) || 'demo_key_' + Date.now()}`
-         
-         logger.success('🎉 API key generated successfully!')
-         logger.newLine()
+         // Create API key using the authenticated credentials via HTTP call
+         logger.info('🔑 Creating API key...')
 
-         return {
-             apiKey,
-             accessToken,
-             userInfo
-         }
+         const apiUrl = THESYS_API_URL
+             const endpoint = `${apiUrl}/application/application.createApiKeyWithOidc`
+
+             const requestData = {
+                 name: 'Create C1 App',
+                 orgId: orgId,
+                 usageType: 'C1'
+             }
+
+             logger.debug(`Making API call to: ${endpoint}`)
+             logger.debug(`Using orgId: ${orgId}`)
+
+             const response = await makeHttpRequest(
+                 endpoint,
+                 {
+                     'Authorization': `Bearer ${accessToken}`,
+                     'Content-Type': 'application/json',
+                     'Accept': 'application/json'
+                 },
+                 JSON.stringify(requestData)
+             )
+
+             if (response.statusCode >= 400) {
+                 throw new Error(`API call failed with status ${response.statusCode}: ${response.body}`)
+             }
+
+             const responseData = JSON.parse(response.body)
+             const apiKey = responseData.apiKey
+
+             if (!apiKey) {
+                 throw new Error('No API key returned from server')
+             }
+
+             logger.success('🎉 API key created successfully!')
+             logger.newLine()
+
+             return {
+                apiKey,
+                 accessToken,
+                 userInfo
+             }
+
     }
 
     private showWelcome(): void {
@@ -378,7 +446,7 @@ class CreateC1App {
         logger.newLine()
     }
 
-    private async setupEnvironment(apiKey: string): Promise<void> {
+    private async setupEnvironment(apiKey: string): Promise<void> { 
         logger.step(3, TOTAL_STEPS, 'Environment Setup')
 
         this.spinner.start('Setting up environment...')
@@ -429,6 +497,8 @@ export async function main(): Promise<void> {
 
     const app = new CreateC1App()
     await app.main()
+
+    process.exit(0)
 }
 
 // Handle process exit to ensure telemetry is flushed
