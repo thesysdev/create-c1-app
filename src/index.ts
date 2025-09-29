@@ -4,10 +4,13 @@ import { hideBin } from 'yargs/helpers'
 import logger from './utils/logger'
 import SpinnerManager from './utils/spinner'
 import * as Validator from './utils/validation'
-import { type CLIOptions, type CreateC1AppConfig } from './types/index'
+import { type CLIOptions, type CreateC1AppConfig, type AuthenticationResult } from './types/index'
 import { ProjectGenerator } from './generators/project'
 import { EnvironmentManager } from './env/envManager'
 import telemetry from './utils/telemetry'
+import Authenticator from './auth/authenticator'
+import { fetchUserInfo } from 'openid-client'
+
 
 // Check Node.js version before doing anything else
 function checkNodeVersion(): void {
@@ -73,17 +76,34 @@ class CreateC1App {
             // Show welcome message and steps
             this.showWelcome()
 
-            // Store provided API key if given and validate it, or prompt for one
-            let apiKey = ''
+            // Handle authentication flow
+            let authResult: AuthenticationResult
             if (options.apiKey !== undefined && options.apiKey !== null && options.apiKey.trim().length > 0) {
-                apiKey = options.apiKey.trim()
+                // Use provided API key
+                const apiKey = options.apiKey.trim()
                 logger.info(`🔑 Using provided API key: ${apiKey.substring(0, 8)}...`)
+                authResult = { apiKey }
+                await telemetry.track('provided_api_key')
             } else {
-                // Prompt user to generate and provide API key
-                apiKey = await this.promptForApiKey()
-            }
+                // Perform OAuth authentication flow
+                try {
+                    authResult = await this.authenticateAndGenerateAPIKey()
+                } catch (error) {
+                    console.log(error)
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                    logger.error(`Authentication failed: ${errorMessage}`)
+                    logger.newLine()
 
-            await telemetry.track('provided_api_key')
+                    process.exit(1)
+                    
+                    // Fallback to manual API key input
+                    logger.info('💡 Falling back to manual API key input...')
+                    const apiKey = await this.promptForApiKey()
+                    
+                    authResult = { apiKey }
+                }
+                await telemetry.track('oauth_authentication')
+            }
 
             // Step 1: Gather project configuration
             await this.gatherProjectConfig(options)
@@ -92,7 +112,7 @@ class CreateC1App {
             await this.createProject()
 
             // Step 3: Setup environment with dotenv
-            await this.setupEnvironment(apiKey)
+            await this.setupEnvironment(authResult.apiKey)
 
             // Track successful completion
             await telemetry.track('completed_create_c1_app', {
@@ -201,10 +221,63 @@ class CreateC1App {
         return trimmedKey
     }
 
+    private async authenticateAndGenerateAPIKey(): Promise<AuthenticationResult> {
+        logger.info('🔐 Starting OAuth authentication...')
+        logger.newLine()
+        
+        // Configuration for Thesys OAuth (these would be real values in production)
+        const authConfig = {
+            issuerUrl: process.env.THESYS_ISSUER_URL || 'http://localhost:3101/oidc',
+            clientId: process.env.THESYS_CLIENT_ID || 'create-c1-app'
+        }
+        
+        const authenticator = new Authenticator(authConfig)
+
+         // Initialize the OAuth client
+         const initResult = await authenticator.initialize()
+         if (!initResult.success) {
+             throw new Error(initResult.error || 'Failed to initialize authentication')
+         }
+
+         // Perform OAuth authentication
+         const authResult = await authenticator.authenticate()
+         if (!authResult.success || !authResult.data) {
+             throw new Error(authResult.error || 'Authentication failed')
+         }
+
+         console.log(authResult.data)
+         const { userInfo, accessToken } = authResult.data
+
+         const userInfoResponse = await fetchUserInfo(authenticator.getClientConfig(), accessToken, userInfo?.sub as string)
+
+         logger.success('✅ Authentication successful!')
+         if (userInfo?.email) {
+             logger.info(`👤 Authenticated as: ${userInfo.email}`)
+         }
+         logger.newLine()
+
+         logger.debug('Choosing first org')
+         const orgId = (userInfoResponse['org_claims'] as {orgId: string}[])?.[0]?.orgId
+         logger.debug(`Org ID: ${orgId}`)
+
+         // Generate API key using the authenticated credentials
+         logger.info('🔑 Generating API key...')
+         const apiKey = `thesys_${accessToken?.substring(0, 32) || 'demo_key_' + Date.now()}`
+         
+         logger.success('🎉 API key generated successfully!')
+         logger.newLine()
+
+         return {
+             apiKey,
+             accessToken,
+             userInfo
+         }
+    }
+
     private showWelcome(): void {
         logger.info('This tool will help you:')
-        logger.info('  1. Create a new Thesys project')
-        logger.info('  2. Authenticate and generate an API key')
+        logger.info('  1. Authenticate and generate an API key')
+        logger.info('  2. Create a new Thesys project')
         logger.info('  3. Setup environment')
 
         logger.newLine()

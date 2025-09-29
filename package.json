@@ -27,6 +27,8 @@
         "dotenv": "^16.3.1",
         "execa": "^5.1.1",
         "nanoid": "^5.1.5",
+        "open": "^10.2.0",
+        "openid-client": "^6.8.1",
         "ora": "^5.4.1",
         "posthog-node": "^5.8.4",
         "unzipper": "^0.10.14",
