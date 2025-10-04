@@ -1,5 +1,5 @@
 import http from 'http'
-import {discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, Configuration } from 'openid-client'
+import {discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, Configuration, allowInsecureRequests, refreshTokenGrant } from 'openid-client'
 import logger from '../utils/logger'
 import { type StepResult } from '../types/index'
 import open from 'open'
@@ -27,7 +27,7 @@ export class Authenticator {
   constructor(config: AuthConfig) {
     this.config = {
       redirectUri: config.redirectUri || 'http://localhost:0/cb', // 0 = any available port
-      scopes: ['openid', 'profile', 'email'],
+      scopes: ['openid', 'profile', 'email','offline_access'],
       ...config
     }
   }
@@ -253,6 +253,7 @@ export class Authenticator {
             scope: this.config.scopes?.join(' ') || 'openid profile email',
             code_challenge: codeChallenge,
             code_challenge_method: 'S256',
+            prompt: 'consent',
           })
           
           logger.info(`🌐 Started callback server on port ${actualPort}`)
