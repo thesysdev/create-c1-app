@@ -1,6 +1,6 @@
 {
     "name": "create-c1-app",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "description": "A CLI tool that creates C1 projects with API authentication",
     "type": "module",
     "main": "dist/index.js",
