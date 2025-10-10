@@ -1,6 +1,7 @@
 import { input } from '@inquirer/prompts'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
+import { createRequire } from 'module'
 import logger from './utils/logger.js'
 import SpinnerManager from './utils/spinner.js'
 import * as Validator from './utils/validation.js'
@@ -10,6 +11,10 @@ import { EnvironmentManager } from './env/envManager.js'
 import telemetry from './utils/telemetry.js'
 import { fetchUserInfo } from 'openid-client'
 import Authenticator from './auth/authenticator.js'
+
+// Load package.json for version info (ESM workaround)
+const require = createRequire(import.meta.url)
+const packageJson = require('../package.json')
 
 const THESYS_API_URL = 'https://api.app.thesys.dev'
 const THESYS_ISSUER_URL = 'https://api.app.thesys.dev/oidc'
@@ -212,7 +217,7 @@ class CreateC1App {
             })
             .help('help', 'Show help')
             .alias('help', 'h')
-            .version('version', 'Show version number')
+            .version(packageJson.version)
             .alias('version', 'v')
             .exitProcess(true)
             .parseAsync()

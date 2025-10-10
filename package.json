@@ -6,15 +6,15 @@
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "bin": {
-        "create-c1-app": "bin/create-c1-app"
+        "create-c1-app": "bin/create-c1-app.js"
     },
     "scripts": {
         "build": "tsc",
         "dev": "node --loader ts-node/esm src/index.ts --debug --disable-telemetry",
-        "start": "node bin/create-c1-app",
+        "start": "node bin/create-c1-app.js",
         "prepublishOnly": "npm run build",
-        "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app'",
-        "lint:fix": "eslint 'src/**/*.ts' 'bin/create-c1-app' --fix"
+        "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app.js'",
+        "lint:fix": "eslint 'src/**/*.ts' 'bin/create-c1-app.js' --fix"
     },
     "keywords": [
         "generative-ui",
