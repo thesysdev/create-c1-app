@@ -1,7 +1,7 @@
 import validateNpmPackageName from 'validate-npm-package-name'
-import { type ValidationResult } from '../types/index'
+import { type ValidationResult } from '../types/index.js'
 
-export function validateProjectName (name: string): ValidationResult {
+export function validateProjectName(name: string): ValidationResult {
   const errors: string[] = []
 
   if (name === null || name === undefined || name.trim().length === 0) {
@@ -41,7 +41,7 @@ export function validateProjectName (name: string): ValidationResult {
   }
 }
 
-export function sanitizeProjectName (name: string): string {
+export function sanitizeProjectName(name: string): string {
   return name
     .trim()
     .toLowerCase()

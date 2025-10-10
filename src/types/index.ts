@@ -26,6 +26,21 @@ export interface BrowserAuthResponse {
   refreshToken?: string
 }
 
+export interface OAuthConfig {
+  issuerUrl: string
+  clientId: string
+  redirectUri?: string
+  scopes?: string[]
+}
+
+export interface AuthenticationResult {
+  apiKey: string
+  keyId?: string
+  accessToken?: string
+  refreshToken?: string
+  userInfo?: Record<string, unknown> | undefined
+}
+
 export interface ApiKeyResponse {
   key: string
 }
@@ -47,6 +62,7 @@ export interface CLIOptions {
   debug?: boolean
   apiKey?: string
   disableTelemetry?: boolean
+  skipAuth?: boolean
 }
 
 export interface StepResult<T = unknown> {

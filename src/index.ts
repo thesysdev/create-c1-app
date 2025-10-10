@@ -1,13 +1,53 @@
 import { input } from '@inquirer/prompts'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-import logger from './utils/logger'
-import SpinnerManager from './utils/spinner'
-import * as Validator from './utils/validation'
-import { type CLIOptions, type CreateC1AppConfig } from './types/index'
-import { ProjectGenerator } from './generators/project'
-import { EnvironmentManager } from './env/envManager'
-import telemetry from './utils/telemetry'
+import { createRequire } from 'module'
+import logger from './utils/logger.js'
+import SpinnerManager from './utils/spinner.js'
+import * as Validator from './utils/validation.js'
+import { type CLIOptions, type CreateC1AppConfig, type AuthenticationResult } from './types/index.js'
+import { ProjectGenerator } from './generators/project.js'
+import { EnvironmentManager } from './env/envManager.js'
+import telemetry from './utils/telemetry.js'
+import { fetchUserInfo } from 'openid-client'
+import Authenticator from './auth/authenticator.js'
+
+// Load package.json for version info (ESM workaround)
+const require = createRequire(import.meta.url)
+const packageJson = require('../package.json')
+
+const THESYS_API_URL = 'https://api.app.thesys.dev'
+const THESYS_ISSUER_URL = 'https://api.app.thesys.dev/oidc'
+const THESYS_CLIENT_ID = 'create-c1-app'
+
+
+// HTTP request helper function
+async function makeHttpRequest(url: string, headers?: Record<string, string>, data?: string): Promise<{ statusCode: number; body: string }> {
+    const fetchOptions: RequestInit = {
+        method: data ? 'POST' : 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...headers
+        }
+    }
+
+    if (data) {
+        fetchOptions.body = data
+    }
+
+    try {
+        const response = await fetch(url, fetchOptions)
+        const body = await response.text()
+
+        return {
+            statusCode: response.status,
+            body
+        }
+    } catch (error) {
+        throw new Error(`HTTP request failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+}
 
 // Check Node.js version before doing anything else
 function checkNodeVersion(): void {
@@ -73,17 +113,32 @@ class CreateC1App {
             // Show welcome message and steps
             this.showWelcome()
 
-            // Store provided API key if given and validate it, or prompt for one
-            let apiKey = ''
+            // Handle authentication flow
+            let authResult: AuthenticationResult
             if (options.apiKey !== undefined && options.apiKey !== null && options.apiKey.trim().length > 0) {
-                apiKey = options.apiKey.trim()
+                // Use provided API key
+                const apiKey = options.apiKey.trim()
                 logger.info(`🔑 Using provided API key: ${apiKey.substring(0, 8)}...`)
+                authResult = { apiKey }
+                await telemetry.track('provided_api_key')
             } else {
-                // Prompt user to generate and provide API key
-                apiKey = await this.promptForApiKey()
-            }
+                // Perform OAuth authentication flow
+                try {
+                    authResult = await this.authenticateAndGenerateAPIKey()
+                } catch (error) {
+                    console.log(error)
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+                    logger.error(`Authentication failed: ${errorMessage}`)
+                    logger.newLine()
 
-            await telemetry.track('provided_api_key')
+                    // Fallback to manual API key input
+                    logger.info('💡 Falling back to manual API key input...')
+                    const apiKey = await this.promptForApiKey()
+
+                    authResult = { apiKey }
+                }
+                await telemetry.track('oauth_authentication')
+            }
 
             // Step 1: Gather project configuration
             await this.gatherProjectConfig(options)
@@ -92,7 +147,7 @@ class CreateC1App {
             await this.createProject()
 
             // Step 3: Setup environment with dotenv
-            await this.setupEnvironment(apiKey)
+            await this.setupEnvironment(authResult.apiKey)
 
             // Track successful completion
             await telemetry.track('completed_create_c1_app', {
@@ -122,11 +177,17 @@ class CreateC1App {
     private async parseArguments(): Promise<CLIOptions> {
         const argv = await yargs(hideBin(process.argv))
             .scriptName('create-c1-app')
-            .usage('Usage: $0 [options]')
+            .usage('Usage: $0 [project-name] [options]')
+            .command('$0 [project-name]', 'Create a new C1 app', (yargs) => {
+                yargs.positional('project-name', {
+                    type: 'string',
+                    description: 'Name of the project to create'
+                })
+            })
             .option('project-name', {
                 alias: 'n',
                 type: 'string',
-                description: 'Name of the project to create'
+                description: 'Name of the project to create (alternative to positional argument)'
             })
             .option('template', {
                 alias: 't',
@@ -144,6 +205,11 @@ class CreateC1App {
                 type: 'string',
                 description: 'API key to use (skips authentication and key generation)'
             })
+            .option('skip-auth', {
+                type: 'boolean',
+                description: 'Skip authentication and key generation',
+                default: false
+            })
             .option('disable-telemetry', {
                 type: 'boolean',
                 description: 'Disable anonymous telemetry collection',
@@ -151,7 +217,7 @@ class CreateC1App {
             })
             .help('help', 'Show help')
             .alias('help', 'h')
-            .version('version', 'Show version number')
+            .version(packageJson.version)
             .alias('version', 'v')
             .exitProcess(true)
             .parseAsync()
@@ -201,10 +267,96 @@ class CreateC1App {
         return trimmedKey
     }
 
+    private async authenticateAndGenerateAPIKey(): Promise<AuthenticationResult> {
+        logger.info('🔐 Starting OAuth authentication...')
+        logger.newLine()
+
+        // Configuration for Thesys OAuth (these would be real values in production)
+        const authConfig = {
+            issuerUrl: THESYS_ISSUER_URL,
+            clientId: THESYS_CLIENT_ID
+        }
+
+        const authenticator = new Authenticator(authConfig)
+
+        // Initialize the OAuth client
+        const initResult = await authenticator.initialize()
+        if (!initResult.success) {
+            throw new Error(initResult.error || 'Failed to initialize authentication')
+        }
+
+        // Perform OAuth authentication
+        const authResult = await authenticator.authenticate()
+        if (!authResult.success || !authResult.data) {
+            throw new Error(authResult.error || 'Authentication failed')
+        }
+
+
+        const { userInfo, accessToken } = authResult.data
+
+        const userInfoResponse = await fetchUserInfo(authenticator.getClientConfig(), accessToken, userInfo?.sub as string)
+
+        logger.success('✅ Authentication successful!')
+        if (userInfo?.email) {
+            logger.info(`👤 Authenticated as: ${userInfo.email}`)
+        }
+        logger.newLine()
+
+        logger.debug('Choosing first org')
+        const orgId = (userInfoResponse['org_claims'] as { orgId: string }[])?.[0]?.orgId
+        logger.debug(`Org ID: ${orgId}`)
+
+        // Create API key using the authenticated credentials via HTTP call
+        logger.info('🔑 Creating API key...')
+
+        const apiUrl = THESYS_API_URL
+        const endpoint = `${apiUrl}/application/application.createApiKeyWithOidc`
+
+        const requestData = {
+            name: 'Create C1 App',
+            orgId: orgId,
+            usageType: 'C1'
+        }
+
+        logger.debug(`Making API call to: ${endpoint}`)
+        logger.debug(`Using orgId: ${orgId}`)
+
+        const response = await makeHttpRequest(
+            endpoint,
+            {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            JSON.stringify(requestData)
+        )
+
+        if (response.statusCode >= 400) {
+            throw new Error(`API call failed with status ${response.statusCode}: ${response.body}`)
+        }
+
+        const responseData = JSON.parse(response.body)
+        const apiKey = responseData.apiKey
+
+        if (!apiKey) {
+            throw new Error('No API key returned from server')
+        }
+
+        logger.success('🎉 API key created successfully!')
+        logger.newLine()
+
+        return {
+            apiKey,
+            accessToken,
+            userInfo
+        }
+
+    }
+
     private showWelcome(): void {
         logger.info('This tool will help you:')
-        logger.info('  1. Create a new Thesys project')
-        logger.info('  2. Authenticate and generate an API key')
+        logger.info('  1. Authenticate and generate an API key')
+        logger.info('  2. Create a new Thesys project')
         logger.info('  3. Setup environment')
 
         logger.newLine()
@@ -219,7 +371,7 @@ class CreateC1App {
         // Project name
         projectName ??= await input({
             message: 'What is your project name?',
-            default: 'thesys-project',
+            default: 'my-c1-app',
             prefill: 'editable',
             validate: (input: string) => {
                 const validation = Validator.validateProjectName(input)
@@ -238,14 +390,9 @@ class CreateC1App {
                 message: 'Which Next.js template would you like to use?',
                 choices: [
                     {
-                        name: 'C1 Next (Recommended)',
+                        name: 'C1 with Next.js (Recommended)',
                         value: 'template-c1-next',
                         description: 'Next.js Generative UI app powered by C1'
-                    },
-                    {
-                        name: 'C1 Component Next',
-                        value: 'template-c1-component-next',
-                        description: 'Next.js Chat with C1 components'
                     },
                 ],
                 default: 'template-c1-next'
@@ -356,6 +503,8 @@ export async function main(): Promise<void> {
 
     const app = new CreateC1App()
     await app.main()
+
+    process.exit(0)
 }
 
 // Handle process exit to ensure telemetry is flushed
@@ -381,7 +530,11 @@ process.on('SIGTERM', async () => {
 export { CreateC1App }
 
 // Execute main function when run directly
-if (require.main === module) {
+// ESM equivalent of require.main === module
+import { fileURLToPath } from 'url'
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url)
+
+if (isMainModule) {
     main().catch((error) => {
         console.error('Error:', error.message)
         process.exit(1)

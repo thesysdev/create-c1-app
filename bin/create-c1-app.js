@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // Entry point for the Create C1 App CLI
-const { main } = require('../dist/index.js')
+import { main } from '../dist/index.js'
 
 main().catch((error) => {
   console.error('Error:', error.message)

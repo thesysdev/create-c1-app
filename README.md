@@ -15,15 +15,19 @@ A powerful CLI tool that setups Generative UI examples with C1 by Thesys
 # Run the tool
 npx create-c1-app
 
-# Or with options
-npx create-c1-app --project-name my-thesys-project --template template-c1-component-next --api-key your-api-key
+# With project name
+npx create-c1-app my-thesys-project
+
+# With project name and options
+npx create-c1-app my-thesys-project --template template-c1-component-next --api-key your-api-key
 ```
 
 ## CLI Options
 
 | Option | Alias | Description | Default |
 |--------|-------|-------------|---------|
-| `--project-name` | `-n` | Name of the project to create | Interactive prompt |
+| `[project-name]` | | Name of the project to create (positional argument) | Interactive prompt |
+| `--project-name` | `-n` | Name of the project to create (alternative to positional argument) | Interactive prompt |
 | `--template` | `-t` | Next.js template to use (`template-c1-component-next` or `template-c1-next`) | Interactive prompt |
 | `--api-key` | `-k` | Thesys API key to use for the project | Interactive prompt |
 | `--debug` | `-d` | Enable debug logging | `false` |
@@ -34,14 +38,20 @@ npx create-c1-app --project-name my-thesys-project --template template-c1-compon
 ### Basic Usage
 
 ```bash
-# Interactive mode (recommended)
+# Interactive mode with OAuth authentication (recommended)
 npx create-c1-app
 
+# Quick setup with project name as positional argument
+npx create-c1-app my-thesys-project
+
 # Quick setup with project name, template, and API key
+npx create-c1-app my-thesys-component --template template-c1-component-next --api-key your-api-key-here
+
+# Using flag instead of positional argument
 npx create-c1-app --project-name my-thesys-component --template template-c1-component-next --api-key your-api-key-here
 
 # With specific template choice
-npx create-c1-app --template template-c1-next --api-key your-api-key-here
+npx create-c1-app my-project --template template-c1-next --api-key your-api-key-here
 
 # Interactive with API key provided
 npx create-c1-app --api-key your-api-key-here
@@ -61,9 +71,40 @@ pnpm link
 ```
 
 
-## Getting Your Thesys API Key
+## Authentication Options
 
-To use Create C1 App, you'll need a Thesys API key:
+Create C1 App supports two authentication methods:
+
+### Option 1: OAuth 2.0 Authentication (Recommended)
+
+The CLI will automatically open your browser and guide you through the OAuth authentication process:
+
+```bash
+npx create-c1-app
+```
+
+This method will:
+- Open your browser for secure authentication
+- Generate an API key automatically after successful login
+- Store the API key in your project's `.env` file
+
+### Option 2: Manual API Key
+
+If you prefer to provide your API key manually or skip OAuth authentication:
+
+```bash
+npx create-c1-app --skip-auth
+```
+
+Or provide your existing API key directly:
+
+```bash
+npx create-c1-app --api-key your-api-key-here
+```
+
+## Getting Your Thesys API Key (Manual Method)
+
+To get an API key manually:
 
 1. 🌐 Visit: https://console.thesys.dev/keys
 2. 🔐 Sign in to your Thesys account

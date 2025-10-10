@@ -2,13 +2,13 @@ import execa from 'execa'
 import fs, { createReadStream, createWriteStream } from 'fs'
 import path from 'path'
 
-import logger from '../utils/logger'
-import { type ProjectGenerationOptions, type StepResult } from '../types/index'
+import logger from '../utils/logger.js'
+import { type ProjectGenerationOptions, type StepResult } from '../types/index.js'
 import { Extract } from 'unzipper'
-import telemetry from '../utils/telemetry'
+import telemetry from '../utils/telemetry.js'
 
 export class ProjectGenerator {
-  async createProject (options: ProjectGenerationOptions): Promise<StepResult> {
+  async createProject(options: ProjectGenerationOptions): Promise<StepResult> {
     try {
       const projectPath = path.join(options.directory, options.name)
 
@@ -46,7 +46,7 @@ export class ProjectGenerator {
     }
   }
 
-  private async downloadTemplate (options: ProjectGenerationOptions): Promise<boolean> {
+  private async downloadTemplate(options: ProjectGenerationOptions): Promise<boolean> {
     if (await this.downloadViaHttp(options)) {
       return true
     }
@@ -54,7 +54,7 @@ export class ProjectGenerator {
     return false
   }
 
-  private async downloadViaHttp (options: ProjectGenerationOptions): Promise<boolean> {
+  private async downloadViaHttp(options: ProjectGenerationOptions): Promise<boolean> {
     try {
       const zipUrl = `https://github.com/thesysdev/${options.template}/archive/refs/heads/main.zip`
       const tempZipPath = path.join(options.directory, `${options.template}-temp.zip`)
@@ -109,7 +109,7 @@ export class ProjectGenerator {
     }
   }
 
-  private async downloadFile (url: string, destination: string): Promise<void> {
+  private async downloadFile(url: string, destination: string): Promise<void> {
     const response = await fetch(url)
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -118,19 +118,19 @@ export class ProjectGenerator {
     const fileStream = createWriteStream(destination)
 
     await new Promise<void>((resolve, reject) => {
-        if (response.body === null) {
-            throw new Error('Response body is null')
-          }
+      if (response.body === null) {
+        throw new Error('Response body is null')
+      }
       response.body.pipeTo(
         new WritableStream({
-          write (chunk) {
+          write(chunk) {
             fileStream.write(chunk)
           },
-          close () {
+          close() {
             fileStream.end()
             resolve()
           },
-          abort (error) {
+          abort(error) {
             fileStream.destroy()
             reject(error)
           }
@@ -139,7 +139,7 @@ export class ProjectGenerator {
     })
   }
 
-  private async extractZip (zipPath: string, destination: string): Promise<void> {
+  private async extractZip(zipPath: string, destination: string): Promise<void> {
     await new Promise((resolve, reject) => {
       createReadStream(zipPath)
         .pipe(Extract({ path: destination }))
@@ -148,7 +148,7 @@ export class ProjectGenerator {
     })
   }
 
-  private async installDependencies (projectPath: string): Promise<void> {
+  private async installDependencies(projectPath: string): Promise<void> {
     // Check if package.json exists in the project directory
     const packageJsonPath = path.join(projectPath, 'package.json')
     try {
@@ -183,7 +183,7 @@ export class ProjectGenerator {
     }
   }
 
-  private async enhanceProjectStructure (_options: ProjectGenerationOptions, projectPath: string): Promise<void> {
+  private async enhanceProjectStructure(_options: ProjectGenerationOptions, projectPath: string): Promise<void> {
     logger.debug('Enhancing project structure...')
 
     // Setup git with proper .gitignore
@@ -192,7 +192,7 @@ export class ProjectGenerator {
     logger.debug('Project structure enhanced')
   }
 
-  private async setupGit (projectPath: string): Promise<void> {
+  private async setupGit(projectPath: string): Promise<void> {
     try {
       // Ensure environment files are in .gitignore
       const gitignorePath = path.join(projectPath, '.gitignore')
@@ -225,7 +225,7 @@ export class ProjectGenerator {
     }
   }
 
-  private async createGitignoreFile (projectPath: string): Promise<void> {
+  private async createGitignoreFile(projectPath: string): Promise<void> {
     const gitignoreContent = `
 # Environment variables
 .env
