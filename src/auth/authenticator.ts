@@ -45,7 +45,6 @@ export class Authenticator {
   async initialize(): Promise<StepResult<void>> {
     logger.debug('🔍 Discovering authorization server...')
 
-    console.log(this.config)
     this.clientConfig = await discovery(
       new URL(this.config.issuerUrl),
       this.config.clientId,
@@ -248,8 +247,6 @@ export class Authenticator {
             throw new Error('Client not initialized')
           }
 
-          console.log(this.clientConfig)
-
           // Generate authorization URL with the correct redirect URI
           const authorizationUrl = buildAuthorizationUrl(this.clientConfig, {
             redirect_uri: `http://localhost:${actualPort}/cb`,
@@ -265,7 +262,6 @@ export class Authenticator {
           logger.info(`   ${authorizationUrl.toString()}`)
           logger.newLine()
 
-          console.log(authorizationUrl.toString())
           // Open browser with authorization URL
           await open(authorizationUrl.toString())
 
