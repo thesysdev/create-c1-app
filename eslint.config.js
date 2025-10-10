@@ -1,7 +1,7 @@
-const tseslint = require('@typescript-eslint/eslint-plugin')
-const tsparser = require('@typescript-eslint/parser')
+import tseslint from '@typescript-eslint/eslint-plugin'
+import tsparser from '@typescript-eslint/parser'
 
-module.exports = [
+export default [
   // Global ignores
   {
     ignores: ['dist/', 'node_modules/']
@@ -9,19 +9,15 @@ module.exports = [
 
   // Base configuration for JavaScript/Node files
   {
-    files: ['bin/create-c1-app'],
+    files: ['bin/create-c1-app.js'],
     languageOptions: {
       ecmaVersion: 2020,
-      sourceType: 'script',
+      sourceType: 'module',
       globals: {
         console: 'readonly',
         process: 'readonly',
         Buffer: 'readonly',
-        __dirname: 'readonly',
-        __filename: 'readonly',
-        global: 'readonly',
-        module: 'readonly',
-        require: 'readonly'
+        global: 'readonly'
       }
     },
     rules: {
@@ -66,14 +62,14 @@ module.exports = [
       'no-console': 'off',
       'prefer-const': 'error',
       'no-var': 'error',
-      
+
       // Disable style rules - focus on functionality
       'semi': 'off',
       'quotes': 'off',
       'comma-dangle': 'off',
       'space-before-function-paren': 'off',
       'indent': 'off',
-      
+
       // TypeScript specific rules - only important ones
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
