@@ -15,15 +15,19 @@ A powerful CLI tool that setups Generative UI examples with C1 by Thesys
 # Run the tool
 npx create-c1-app
 
-# Or with options
-npx create-c1-app --project-name my-thesys-project --template template-c1-component-next --api-key your-api-key
+# With project name
+npx create-c1-app my-thesys-project
+
+# With project name and options
+npx create-c1-app my-thesys-project --template template-c1-component-next --api-key your-api-key
 ```
 
 ## CLI Options
 
 | Option | Alias | Description | Default |
 |--------|-------|-------------|---------|
-| `--project-name` | `-n` | Name of the project to create | Interactive prompt |
+| `[project-name]` | | Name of the project to create (positional argument) | Interactive prompt |
+| `--project-name` | `-n` | Name of the project to create (alternative to positional argument) | Interactive prompt |
 | `--template` | `-t` | Next.js template to use (`template-c1-component-next` or `template-c1-next`) | Interactive prompt |
 | `--api-key` | `-k` | Thesys API key to use for the project | Interactive prompt |
 | `--debug` | `-d` | Enable debug logging | `false` |
@@ -37,11 +41,17 @@ npx create-c1-app --project-name my-thesys-project --template template-c1-compon
 # Interactive mode with OAuth authentication (recommended)
 npx create-c1-app
 
+# Quick setup with project name as positional argument
+npx create-c1-app my-thesys-project
+
 # Quick setup with project name, template, and API key
+npx create-c1-app my-thesys-component --template template-c1-component-next --api-key your-api-key-here
+
+# Using flag instead of positional argument
 npx create-c1-app --project-name my-thesys-component --template template-c1-component-next --api-key your-api-key-here
 
 # With specific template choice
-npx create-c1-app --template template-c1-next --api-key your-api-key-here
+npx create-c1-app my-project --template template-c1-next --api-key your-api-key-here
 
 # Interactive with API key provided
 npx create-c1-app --api-key your-api-key-here

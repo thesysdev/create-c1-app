@@ -1,5 +1,5 @@
 import http from 'http'
-import {discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, Configuration, allowInsecureRequests, refreshTokenGrant } from 'openid-client'
+import { discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, Configuration } from 'openid-client'
 import logger from '../utils/logger'
 import { type StepResult } from '../types/index'
 import open from 'open'
@@ -27,7 +27,7 @@ export class Authenticator {
   constructor(config: AuthConfig) {
     this.config = {
       redirectUri: config.redirectUri || 'http://localhost:0/cb', // 0 = any available port
-      scopes: ['openid', 'profile', 'email','offline_access'],
+      scopes: ['openid', 'profile', 'email'],
       ...config
     }
   }
@@ -44,7 +44,8 @@ export class Authenticator {
    */
   async initialize(): Promise<StepResult<void>> {
     logger.debug('🔍 Discovering authorization server...')
-      
+
+    console.log(this.config)
     this.clientConfig = await discovery(
       new URL(this.config.issuerUrl),
       this.config.clientId,
@@ -52,7 +53,7 @@ export class Authenticator {
     )
 
     logger.debug('✅ Authorization server discovered successfully')
-    
+
     return { success: true }
   }
 
@@ -61,37 +62,37 @@ export class Authenticator {
    */
   async authenticate(): Promise<StepResult<AuthResult>> {
     if (!this.clientConfig) {
-      return { 
-        success: false, 
-        error: 'Client not initialized. Call initialize() first.' 
+      return {
+        success: false,
+        error: 'Client not initialized. Call initialize() first.'
       }
     }
 
     try {
       logger.info('🔐 Starting authentication...')
-      
+
       // Generate PKCE parameters
       this.codeVerifier = randomPKCECodeVerifier()
       const codeChallenge = await calculatePKCECodeChallenge(this.codeVerifier)
 
       // Start authentication flow with dynamic port handling
       const authResult = await this.handleBrowserAuth(codeChallenge)
-      
+
       if (!authResult.success) {
         return authResult
       }
 
       logger.success('🎉 Authentication completed successfully!')
-      
+
       return authResult
-      
+
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
       logger.error(`Authentication failed: ${errorMessage}`)
-      
-      return { 
-        success: false, 
-        error: `Authentication failed: ${errorMessage}` 
+
+      return {
+        success: false,
+        error: `Authentication failed: ${errorMessage}`
       }
     }
   }
@@ -109,10 +110,10 @@ export class Authenticator {
         try {
           if (req.url?.startsWith('/cb')) {
             logger.debug('📨 Received callback from authorization server')
-            
+
             // Create URL object from the callback request
             const callbackUrl = new URL(req.url, `http://localhost:${actualPort}`)
-            
+
             if (!this.clientConfig || !this.codeVerifier) {
               throw new Error('Client not properly initialized')
             }
@@ -212,9 +213,9 @@ export class Authenticator {
           // Close server and resolve with error
           serverClosed = true
           server.close()
-          resolve({ 
-            success: false, 
-            error: `Token exchange failed: ${errorMessage}` 
+          resolve({
+            success: false,
+            error: `Token exchange failed: ${errorMessage}`
           })
         }
       })
@@ -222,14 +223,14 @@ export class Authenticator {
       // Handle server errors
       server.on('error', (error) => {
         if (serverClosed) return
-        
+
         const errorMessage = error.message
         logger.error(`Server error: ${errorMessage}`)
-        
+
         serverClosed = true
-        resolve({ 
-          success: false, 
-          error: `Server error: ${errorMessage}` 
+        resolve({
+          success: false,
+          error: `Server error: ${errorMessage}`
         })
       })
 
@@ -242,11 +243,13 @@ export class Authenticator {
             throw new Error('Failed to get server address')
           }
           actualPort = address.port
-          
+
           if (!this.clientConfig) {
             throw new Error('Client not initialized')
           }
-          
+
+          console.log(this.clientConfig)
+
           // Generate authorization URL with the correct redirect URI
           const authorizationUrl = buildAuthorizationUrl(this.clientConfig, {
             redirect_uri: `http://localhost:${actualPort}/cb`,
@@ -255,20 +258,22 @@ export class Authenticator {
             code_challenge_method: 'S256',
             prompt: 'consent',
           })
-          
+
           logger.info(`🌐 Started callback server on port ${actualPort}`)
           logger.info('🌐 Opening browser for authentication...')
           logger.info('💡 If the browser doesn\'t open automatically, please visit:')
           logger.info(`   ${authorizationUrl.toString()}`)
           logger.newLine()
-          
+
+          console.log(authorizationUrl.toString())
           // Open browser with authorization URL
           await open(authorizationUrl.toString())
-          
+
           logger.info('⏳ Waiting for authentication to complete...')
           logger.info('   Please complete the authentication in your browser.')
-          
+
         } catch (error) {
+          console.log(error)
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
           logger.error(`Failed to open browser: ${errorMessage}`)
           logger.info('💡 Please manually visit the authorization URL shown above')
@@ -281,9 +286,9 @@ export class Authenticator {
           logger.error('⏰ Authentication timed out after 5 minutes')
           serverClosed = true
           server.close()
-          resolve({ 
-            success: false, 
-            error: 'Authentication timed out. Please try again.' 
+          resolve({
+            success: false,
+            error: 'Authentication timed out. Please try again.'
           })
         }
       }, 5 * 60 * 1000) // 5 minutes timeout

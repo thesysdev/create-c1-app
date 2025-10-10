@@ -125,11 +125,11 @@ class CreateC1App {
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
                     logger.error(`Authentication failed: ${errorMessage}`)
                     logger.newLine()
-                    
+
                     // Fallback to manual API key input
                     logger.info('💡 Falling back to manual API key input...')
                     const apiKey = await this.promptForApiKey()
-                    
+
                     authResult = { apiKey }
                 }
                 await telemetry.track('oauth_authentication')
@@ -172,11 +172,17 @@ class CreateC1App {
     private async parseArguments(): Promise<CLIOptions> {
         const argv = await yargs(hideBin(process.argv))
             .scriptName('create-c1-app')
-            .usage('Usage: $0 [options]')
+            .usage('Usage: $0 [project-name] [options]')
+            .command('$0 [project-name]', 'Create a new C1 app', (yargs) => {
+                yargs.positional('project-name', {
+                    type: 'string',
+                    description: 'Name of the project to create'
+                })
+            })
             .option('project-name', {
                 alias: 'n',
                 type: 'string',
-                description: 'Name of the project to create'
+                description: 'Name of the project to create (alternative to positional argument)'
             })
             .option('template', {
                 alias: 't',
@@ -259,86 +265,86 @@ class CreateC1App {
     private async authenticateAndGenerateAPIKey(): Promise<AuthenticationResult> {
         logger.info('🔐 Starting OAuth authentication...')
         logger.newLine()
-        
+
         // Configuration for Thesys OAuth (these would be real values in production)
         const authConfig = {
             issuerUrl: THESYS_ISSUER_URL,
             clientId: THESYS_CLIENT_ID
         }
-        
+
         const authenticator = new Authenticator(authConfig)
 
-         // Initialize the OAuth client
-         const initResult = await authenticator.initialize()
-         if (!initResult.success) {
-             throw new Error(initResult.error || 'Failed to initialize authentication')
-         }
+        // Initialize the OAuth client
+        const initResult = await authenticator.initialize()
+        if (!initResult.success) {
+            throw new Error(initResult.error || 'Failed to initialize authentication')
+        }
 
-         // Perform OAuth authentication
-         const authResult = await authenticator.authenticate()
-         if (!authResult.success || !authResult.data) {
-             throw new Error(authResult.error || 'Authentication failed')
-         }
+        // Perform OAuth authentication
+        const authResult = await authenticator.authenticate()
+        if (!authResult.success || !authResult.data) {
+            throw new Error(authResult.error || 'Authentication failed')
+        }
 
-         console.log(authResult.data)
-         const { userInfo, accessToken } = authResult.data
 
-         const userInfoResponse = await fetchUserInfo(authenticator.getClientConfig(), accessToken, userInfo?.sub as string)
+        const { userInfo, accessToken } = authResult.data
 
-         logger.success('✅ Authentication successful!')
-         if (userInfo?.email) {
-             logger.info(`👤 Authenticated as: ${userInfo.email}`)
-         }
-         logger.newLine()
+        const userInfoResponse = await fetchUserInfo(authenticator.getClientConfig(), accessToken, userInfo?.sub as string)
 
-         logger.debug('Choosing first org')
-         const orgId = (userInfoResponse['org_claims'] as {orgId: string}[])?.[0]?.orgId
-         logger.debug(`Org ID: ${orgId}`)
+        logger.success('✅ Authentication successful!')
+        if (userInfo?.email) {
+            logger.info(`👤 Authenticated as: ${userInfo.email}`)
+        }
+        logger.newLine()
 
-         // Create API key using the authenticated credentials via HTTP call
-         logger.info('🔑 Creating API key...')
+        logger.debug('Choosing first org')
+        const orgId = (userInfoResponse['org_claims'] as { orgId: string }[])?.[0]?.orgId
+        logger.debug(`Org ID: ${orgId}`)
 
-         const apiUrl = THESYS_API_URL
-             const endpoint = `${apiUrl}/application/application.createApiKeyWithOidc`
+        // Create API key using the authenticated credentials via HTTP call
+        logger.info('🔑 Creating API key...')
 
-             const requestData = {
-                 name: 'Create C1 App',
-                 orgId: orgId,
-                 usageType: 'C1'
-             }
+        const apiUrl = THESYS_API_URL
+        const endpoint = `${apiUrl}/application/application.createApiKeyWithOidc`
 
-             logger.debug(`Making API call to: ${endpoint}`)
-             logger.debug(`Using orgId: ${orgId}`)
+        const requestData = {
+            name: 'Create C1 App',
+            orgId: orgId,
+            usageType: 'C1'
+        }
 
-             const response = await makeHttpRequest(
-                 endpoint,
-                 {
-                     'Authorization': `Bearer ${accessToken}`,
-                     'Content-Type': 'application/json',
-                     'Accept': 'application/json'
-                 },
-                 JSON.stringify(requestData)
-             )
+        logger.debug(`Making API call to: ${endpoint}`)
+        logger.debug(`Using orgId: ${orgId}`)
 
-             if (response.statusCode >= 400) {
-                 throw new Error(`API call failed with status ${response.statusCode}: ${response.body}`)
-             }
+        const response = await makeHttpRequest(
+            endpoint,
+            {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            JSON.stringify(requestData)
+        )
 
-             const responseData = JSON.parse(response.body)
-             const apiKey = responseData.apiKey
+        if (response.statusCode >= 400) {
+            throw new Error(`API call failed with status ${response.statusCode}: ${response.body}`)
+        }
 
-             if (!apiKey) {
-                 throw new Error('No API key returned from server')
-             }
+        const responseData = JSON.parse(response.body)
+        const apiKey = responseData.apiKey
 
-             logger.success('🎉 API key created successfully!')
-             logger.newLine()
+        if (!apiKey) {
+            throw new Error('No API key returned from server')
+        }
 
-             return {
-                apiKey,
-                 accessToken,
-                 userInfo
-             }
+        logger.success('🎉 API key created successfully!')
+        logger.newLine()
+
+        return {
+            apiKey,
+            accessToken,
+            userInfo
+        }
 
     }
 
@@ -360,7 +366,7 @@ class CreateC1App {
         // Project name
         projectName ??= await input({
             message: 'What is your project name?',
-            default: 'thesys-project',
+            default: 'my-c1-app',
             prefill: 'editable',
             validate: (input: string) => {
                 const validation = Validator.validateProjectName(input)
@@ -379,14 +385,9 @@ class CreateC1App {
                 message: 'Which Next.js template would you like to use?',
                 choices: [
                     {
-                        name: 'C1 Next (Recommended)',
+                        name: 'C1 with Next.js (Recommended)',
                         value: 'template-c1-next',
                         description: 'Next.js Generative UI app powered by C1'
-                    },
-                    {
-                        name: 'C1 Component Next',
-                        value: 'template-c1-component-next',
-                        description: 'Next.js Chat with C1 components'
                     },
                 ],
                 default: 'template-c1-next'
@@ -446,7 +447,7 @@ class CreateC1App {
         logger.newLine()
     }
 
-    private async setupEnvironment(apiKey: string): Promise<void> { 
+    private async setupEnvironment(apiKey: string): Promise<void> {
         logger.step(3, TOTAL_STEPS, 'Environment Setup')
 
         this.spinner.start('Setting up environment...')

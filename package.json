@@ -9,7 +9,7 @@
     },
     "scripts": {
         "build": "tsc",
-        "dev": "ts-node src/index.ts",
+        "dev": "ts-node src/index.ts --debug --disable-telemetry",
         "start": "node bin/create-c1-app",
         "prepublishOnly": "npm run build",
         "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app'",
