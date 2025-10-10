@@ -1,7 +1,7 @@
 import http from 'http'
 import { discovery, randomPKCECodeVerifier, calculatePKCECodeChallenge, buildAuthorizationUrl, authorizationCodeGrant, Configuration } from 'openid-client'
-import logger from '../utils/logger'
-import { type StepResult } from '../types/index'
+import logger from '../utils/logger.js'
+import { type StepResult } from '../types/index.js'
 import open from 'open'
 
 

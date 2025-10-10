@@ -1,10 +1,10 @@
 import fs from 'fs/promises'
 import path from 'path'
-import logger from '../utils/logger'
-import { type StepResult } from '../types/index'
+import logger from '../utils/logger.js'
+import { type StepResult } from '../types/index.js'
 
 export class EnvironmentManager {
-  async setupEnvironment (projectName: string, apiKey: string): Promise<StepResult> {
+  async setupEnvironment(projectName: string, apiKey: string): Promise<StepResult> {
     try {
       const projectPath = path.join(process.cwd(), projectName)
 

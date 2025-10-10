@@ -1,15 +1,15 @@
 import { input } from '@inquirer/prompts'
 import yargs from 'yargs'
 import { hideBin } from 'yargs/helpers'
-import logger from './utils/logger'
-import SpinnerManager from './utils/spinner'
-import * as Validator from './utils/validation'
-import { type CLIOptions, type CreateC1AppConfig, type AuthenticationResult } from './types/index'
-import { ProjectGenerator } from './generators/project'
-import { EnvironmentManager } from './env/envManager'
-import telemetry from './utils/telemetry'
+import logger from './utils/logger.js'
+import SpinnerManager from './utils/spinner.js'
+import * as Validator from './utils/validation.js'
+import { type CLIOptions, type CreateC1AppConfig, type AuthenticationResult } from './types/index.js'
+import { ProjectGenerator } from './generators/project.js'
+import { EnvironmentManager } from './env/envManager.js'
+import telemetry from './utils/telemetry.js'
 import { fetchUserInfo } from 'openid-client'
-import Authenticator from './auth/authenticator'
+import Authenticator from './auth/authenticator.js'
 
 const THESYS_API_URL = 'https://api.app.thesys.dev'
 const THESYS_ISSUER_URL = 'https://api.app.thesys.dev/oidc'
@@ -525,7 +525,11 @@ process.on('SIGTERM', async () => {
 export { CreateC1App }
 
 // Execute main function when run directly
-if (require.main === module) {
+// ESM equivalent of require.main === module
+import { fileURLToPath } from 'url'
+const isMainModule = process.argv[1] === fileURLToPath(import.meta.url)
+
+if (isMainModule) {
     main().catch((error) => {
         console.error('Error:', error.message)
         process.exit(1)

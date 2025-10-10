@@ -2,7 +2,7 @@ import { PostHog } from 'posthog-node'
 import os from 'os'
 import fs from 'fs'
 import path from 'path'
-import logger from './logger'
+import logger from './logger.js'
 
 export interface TelemetryEvent {
     event: string
