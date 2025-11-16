@@ -4,9 +4,9 @@ import logger from '../utils/logger.js'
 import { type StepResult } from '../types/index.js'
 
 export class EnvironmentManager {
-  async setupEnvironment(projectName: string, apiKey: string): Promise<StepResult> {
+  async setupEnvironment(projectName: string, apiKey: string, options: { isCurrentDir?: boolean } = { isCurrentDir: false }): Promise<StepResult> {
     try {
-      const projectPath = path.join(process.cwd(), projectName)
+      const projectPath = options.isCurrentDir ? process.cwd() : path.join(process.cwd(), projectName)
 
       // Ensure we're in the project directory
       try {

@@ -1,6 +1,7 @@
 export interface CreateC1AppConfig {
   projectName: string
   template: string
+  isCurrentDir: boolean
 }
 
 export interface AuthCredentials {
@@ -49,6 +50,7 @@ export interface ProjectGenerationOptions {
   name: string
   template: string
   directory: string
+  isCurrentDir?: boolean
 }
 
 export interface EnvironmentConfig {

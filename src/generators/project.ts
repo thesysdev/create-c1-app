@@ -10,14 +10,34 @@ import telemetry from '../utils/telemetry.js'
 export class ProjectGenerator {
   async createProject(options: ProjectGenerationOptions): Promise<StepResult> {
     try {
-      const projectPath = path.join(options.directory, options.name)
+      const projectPath = options.isCurrentDir ? process.cwd() : path.join(options.directory, options.name)
 
       // Check if directory already exists
-      try {
-        await fs.promises.access(projectPath, fs.constants.F_OK)
-        throw new Error(`Directory "${options.name}" already exists`)
-      } catch (error) {
-        // Directory doesn't exist, which is what we want
+      if (!options.isCurrentDir) {
+        try {
+          await fs.promises.access(projectPath, fs.constants.F_OK)
+          throw new Error(`Directory "${options.name}" already exists`)
+        } catch (error) {
+          // Directory doesn't exist, which is what we want
+        }
+      } else {
+        const files = await fs.promises.readdir(projectPath);
+        const ignoredFiles = [
+          ".git",
+          ".DS_Store",
+          "node_modules",
+          ".env",
+          "Thumbs.db",
+        ];
+        const significantFiles = files.filter(
+          (file: string) => !ignoredFiles.includes(file)
+        );
+
+        if (significantFiles.length > 0) {
+          throw new Error(
+            "Current directory is not empty. Please use an empty directory or specify a different project name."
+          );
+        }
       }
 
       logger.debug(`Creating project from template at: ${projectPath}`)

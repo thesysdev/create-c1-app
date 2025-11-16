@@ -70,6 +70,14 @@ function checkNodeVersion(): void {
     }
 }
 
+// Helper function to resolve project name from "." to currect directory name
+function resolveProjectName(projectName: string): { name: string, isCurrentDir: boolean } {
+    if (projectName === '.') {
+        return { name: path.basename(process.cwd()), isCurrentDir: true }
+    }
+    return { name: projectName, isCurrentDir: false }
+}
+
 const TOTAL_STEPS = 3
 class CreateC1App {
     private readonly spinner: SpinnerManager
@@ -79,7 +87,8 @@ class CreateC1App {
         this.spinner = new SpinnerManager()
         this.config = {
             projectName: '',
-            template: 'app'
+            template: 'app',
+            isCurrentDir: false
         }
     }
 
@@ -367,21 +376,35 @@ class CreateC1App {
 
         let projectName = options.projectName
         let template = options.template
+        let isCurrentDir = false
 
         // Project name
-        projectName ??= await input({
-            message: 'What is your project name?',
-            default: 'my-c1-app',
-            prefill: 'editable',
-            validate: (input: string) => {
-                const validation = Validator.validateProjectName(input)
-                if (!validation.isValid) {
-                    return validation.errors[0]
-                }
-                return true
-            },
-            transformer: (input: string) => Validator.sanitizeProjectName(input)
-        })
+        if (projectName === '' || projectName === undefined) {
+            projectName = await input({
+                message: 'What is your project name?',
+                default: 'my-c1-app',
+                prefill: 'editable',
+                validate: (input: string) => {
+                    const validation = Validator.validateProjectName(input)
+                    if (!validation.isValid) {
+                        return validation.errors[0]
+                    }
+                    return true
+                },
+                transformer: (input: string) => Validator.sanitizeProjectName(input)
+            })
+        } else {
+            const resolved = resolveProjectName(projectName)
+            projectName = resolved.name
+            isCurrentDir = resolved.isCurrentDir
+
+            const validation = Validator.validateProjectName(projectName)
+            if (!validation.isValid) {
+                logger.error(`Invalid project name "${projectName}": ${validation.errors[0]}`)
+                logger.info('Please enter a valid project name')
+                process.exit(1)
+            }
+        }
 
         // Template selection
         if (template === undefined) {
@@ -402,7 +425,8 @@ class CreateC1App {
         // Update config with answers and CLI options
         this.config = {
             projectName,
-            template: template || 'template-c1-component-next'
+            template: template || 'template-c1-component-next',
+            isCurrentDir
         }
 
         // Track project configuration
@@ -426,7 +450,8 @@ class CreateC1App {
             const result = await generator.createProject({
                 name: this.config.projectName,
                 template: this.config.template,
-                directory: process.cwd()
+                directory: process.cwd(),
+                isCurrentDir: this.config.isCurrentDir
             })
 
             if (result.success) {
@@ -460,7 +485,7 @@ class CreateC1App {
         try {
             const envManager = new EnvironmentManager()
 
-            const result = await envManager.setupEnvironment(this.config.projectName, apiKey)
+            const result = await envManager.setupEnvironment(this.config.projectName, apiKey, { isCurrentDir: this.config.isCurrentDir })
 
             if (result.success) {
                 // Track successful environment setup
@@ -488,8 +513,11 @@ class CreateC1App {
         logger.newLine()
 
         logger.info('Your project is ready! Next steps:')
-        logger.info(`  1. cd ${this.config.projectName}`)
-        logger.info('  2. npm run dev')
+        if (this.config.isCurrentDir) logger.info('  1. npm run dev')
+        else { 
+            logger.info(`  1. cd ${this.config.projectName}`)
+            logger.info('  2. npm run dev')
+        }
         logger.newLine()
 
         logger.info('Happy coding! 🚀')
@@ -532,6 +560,7 @@ export { CreateC1App }
 // Execute main function when run directly
 // ESM equivalent of require.main === module
 import { fileURLToPath } from 'url'
+import path from 'path'
 const isMainModule = process.argv[1] === fileURLToPath(import.meta.url)
 
 if (isMainModule) {
