@@ -50,7 +50,7 @@ export interface ProjectGenerationOptions {
   name: string
   template: string
   directory: string
-  isCurrentDir?: boolean
+  isCurrentDir: boolean
 }
 
 export interface EnvironmentConfig {

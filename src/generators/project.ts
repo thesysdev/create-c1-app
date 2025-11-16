@@ -1,5 +1,5 @@
 import execa from 'execa'
-import fs, { createReadStream, createWriteStream } from 'fs'
+import fs, { createReadStream, createWriteStream, Dirent } from 'fs'
 import path from 'path'
 
 import logger from '../utils/logger.js'
@@ -21,7 +21,7 @@ export class ProjectGenerator {
           // Directory doesn't exist, which is what we want
         }
       } else {
-        const files = await fs.promises.readdir(projectPath);
+        const files = await fs.promises.readdir(projectPath, { withFileTypes: true });
         const ignoredFiles = [
           ".git",
           ".DS_Store",
@@ -30,8 +30,8 @@ export class ProjectGenerator {
           "Thumbs.db",
         ];
         const significantFiles = files.filter(
-          (file: string) => !ignoredFiles.includes(file)
-        );
+          (file: Dirent) => file.isFile() && !ignoredFiles.includes(file.name)
+        ).map(file => file.name);
 
         if (significantFiles.length > 0) {
           throw new Error(
