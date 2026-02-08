@@ -63,6 +63,7 @@ export interface CLIOptions {
   apiKey?: string
   disableTelemetry?: boolean
   skipAuth?: boolean
+  nonInteractive?: boolean
 }
 
 export interface StepResult<T = unknown> {

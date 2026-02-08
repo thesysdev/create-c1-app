@@ -70,10 +70,25 @@ function checkNodeVersion(): void {
     }
 }
 
+/**
+ * Detect whether we're running in a non-interactive environment.
+ * Returns true if any of the following hold:
+ *   - The `--non-interactive` flag was passed
+ *   - stdin is not a TTY (piped input, cron, backgrounded process, agent shell)
+ *   - Common CI environment variables are set (CI, CONTINUOUS_INTEGRATION, BUILD_NUMBER, GITHUB_ACTIONS, etc.)
+ */
+function isNonInteractiveEnvironment(explicitFlag: boolean): boolean {
+    if (explicitFlag) return true
+    if (!process.stdin.isTTY) return true
+    const ciVars = ['CI', 'CONTINUOUS_INTEGRATION', 'BUILD_NUMBER', 'GITHUB_ACTIONS', 'GITLAB_CI', 'JENKINS_URL', 'CODEBUILD_BUILD_ID']
+    return ciVars.some(v => process.env[v] !== undefined)
+}
+
 const TOTAL_STEPS = 3
 class CreateC1App {
     private readonly spinner: SpinnerManager
     private config: CreateC1AppConfig
+    private nonInteractive: boolean
 
     constructor() {
         this.spinner = new SpinnerManager()
@@ -81,6 +96,7 @@ class CreateC1App {
             projectName: '',
             template: 'app'
         }
+        this.nonInteractive = false
     }
 
     async main(): Promise<void> {
@@ -104,11 +120,24 @@ class CreateC1App {
                 logger.info('📊 Telemetry disabled for this session')
             }
 
+            // Detect non-interactive mode
+            this.nonInteractive = isNonInteractiveEnvironment(options.nonInteractive === true)
+            if (this.nonInteractive) {
+                logger.info('🤖 Running in non-interactive mode')
+            }
+
             // Track app start
             await telemetry.track('started_create_c1_app')
 
             logger.info('🧙‍♂️ Welcome to Create C1 App!')
             logger.newLine()
+
+            // If no options were provided, log instructions for AI agents
+            const hasOptions = options.projectName || options.template || options.apiKey
+            if (!hasOptions) {
+                logger.info('[AI Agent Instructions] This CLI requires interactive input by default. If you are an AI agent or automated tool, run `npx create-c1-app --help` to see all available options and pass them as flags to avoid interactive prompts.')
+                logger.newLine()
+            }
 
             // Show welcome message and steps
             this.showWelcome()
@@ -121,6 +150,14 @@ class CreateC1App {
                 logger.info(`🔑 Using provided API key: ${apiKey.substring(0, 8)}...`)
                 authResult = { apiKey }
                 await telemetry.track('provided_api_key')
+            } else if (this.nonInteractive) {
+                // In non-interactive mode, we cannot open a browser or prompt for input
+                throw new Error(
+                    'An API key is required in non-interactive mode. ' +
+                    'Provide one with --api-key <key>.\n' +
+                    '  Example: npx create-c1-app my-project --template template-c1-next --api-key <your-key>\n' +
+                    '  Get a key at: https://console.thesys.dev/keys'
+                )
             } else {
                 // Perform OAuth authentication flow
                 try {
@@ -215,10 +252,24 @@ class CreateC1App {
                 description: 'Disable anonymous telemetry collection',
                 default: false
             })
+            .option('non-interactive', {
+                type: 'boolean',
+                description: 'Run in non-interactive mode (fails if required options are missing). Auto-enabled in CI environments or non-TTY shells.',
+                default: false
+            })
             .help('help', 'Show help')
             .alias('help', 'h')
             .version(packageJson.version)
             .alias('version', 'v')
+            .epilogue(
+                'Getting an API key manually:\n' +
+                '  1. Visit https://console.thesys.dev/keys\n' +
+                '  2. Sign in to your Thesys account (or create one)\n' +
+                '  3. Click "Create New API Key" and give it a name\n' +
+                '  4. Copy the generated key and pass it with --api-key\n\n' +
+                'Example:\n' +
+                '  $ npx create-c1-app my-app --api-key <your-key>'
+            )
             .exitProcess(true)
             .parseAsync()
 
@@ -369,34 +420,48 @@ class CreateC1App {
         let template = options.template
 
         // Project name
-        projectName ??= await input({
-            message: 'What is your project name?',
-            default: 'my-c1-app',
-            prefill: 'editable',
-            validate: (input: string) => {
-                const validation = Validator.validateProjectName(input)
-                if (!validation.isValid) {
-                    return validation.errors[0]
-                }
-                return true
-            },
-            transformer: (input: string) => Validator.sanitizeProjectName(input)
-        })
+        if (projectName === undefined) {
+            if (this.nonInteractive) {
+                // Use default in non-interactive mode
+                projectName = 'my-c1-app'
+                logger.info(`📁 Using default project name: ${projectName}`)
+            } else {
+                projectName = await input({
+                    message: 'What is your project name?',
+                    default: 'my-c1-app',
+                    prefill: 'editable',
+                    validate: (input: string) => {
+                        const validation = Validator.validateProjectName(input)
+                        if (!validation.isValid) {
+                            return validation.errors[0]
+                        }
+                        return true
+                    },
+                    transformer: (input: string) => Validator.sanitizeProjectName(input)
+                })
+            }
+        }
 
         // Template selection
         if (template === undefined) {
-            const { select } = await import('@inquirer/prompts')
-            template = await select({
-                message: 'Which Next.js template would you like to use?',
-                choices: [
-                    {
-                        name: 'C1 with Next.js (Recommended)',
-                        value: 'template-c1-next',
-                        description: 'Next.js Generative UI app powered by C1'
-                    },
-                ],
-                default: 'template-c1-next'
-            })
+            if (this.nonInteractive) {
+                // Use default in non-interactive mode
+                template = 'template-c1-next'
+                logger.info(`📦 Using default template: ${template}`)
+            } else {
+                const { select } = await import('@inquirer/prompts')
+                template = await select({
+                    message: 'Which Next.js template would you like to use?',
+                    choices: [
+                        {
+                            name: 'C1 with Next.js (Recommended)',
+                            value: 'template-c1-next',
+                            description: 'Next.js Generative UI app powered by C1'
+                        },
+                    ],
+                    default: 'template-c1-next'
+                })
+            }
         }
 
         // Update config with answers and CLI options

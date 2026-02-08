@@ -31,6 +31,7 @@ npx create-c1-app my-thesys-project --template template-c1-component-next --api-
 | `--template` | `-t` | Next.js template to use (`template-c1-component-next` or `template-c1-next`) | Interactive prompt |
 | `--api-key` | `-k` | Thesys API key to use for the project | Interactive prompt |
 | `--debug` | `-d` | Enable debug logging | `false` |
+| `--non-interactive` | | Run without prompts; fails fast if required options are missing. Auto-enabled in CI or non-TTY shells. | `false` (auto-detected) |
 | `--disable-telemetry` | | Disable anonymous telemetry for current session | `false` |
 
 ## Usage Examples
@@ -57,6 +58,29 @@ npx create-c1-app my-project --template template-c1-next --api-key your-api-key-
 npx create-c1-app --api-key your-api-key-here
 ```
 
+
+### Non-Interactive / CI / Agent Usage
+
+When running in CI pipelines, automated scripts, or AI agent shells (e.g. Cursor, Copilot, Devin), interactive prompts will hang. The CLI supports a fully non-interactive mode:
+
+```bash
+# Explicit flag
+npx create-c1-app my-project --template template-c1-next --api-key YOUR_API_KEY --non-interactive
+
+# Or just provide all required flags — non-interactive mode is auto-detected
+# when stdin is not a TTY (pipes, agents, CI) or when CI env vars are set
+npx create-c1-app my-project --template template-c1-next --api-key YOUR_API_KEY
+```
+
+**Auto-detection:** The CLI automatically enables non-interactive mode when:
+- `stdin` is not a TTY (piped input, background process, agent shell)
+- Common CI environment variables are set (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `JENKINS_URL`, etc.)
+
+**Behavior in non-interactive mode:**
+- `--api-key` is **required** (OAuth browser flow is skipped)
+- `--project-name` defaults to `my-c1-app` if not provided
+- `--template` defaults to `template-c1-next` if not provided
+- The CLI will **fail immediately** with a clear error if required options are missing, instead of hanging on a prompt
 
 ## Development
 
