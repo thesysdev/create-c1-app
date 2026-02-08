@@ -1,69 +1,69 @@
 {
-    "name": "create-c1-app",
-    "version": "1.1.6",
-    "description": "A CLI tool that creates C1 projects with API authentication",
-    "type": "module",
-    "main": "dist/index.js",
-    "types": "dist/index.d.ts",
-    "bin": {
-        "create-c1-app": "bin/create-c1-app.js"
-    },
-    "scripts": {
-        "build": "tsc",
-        "dev": "node --loader ts-node/esm src/index.ts --debug --disable-telemetry",
-        "start": "node bin/create-c1-app.js",
-        "prepublishOnly": "npm run build",
-        "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app.js'",
-        "lint:fix": "eslint 'src/**/*.ts' 'bin/create-c1-app.js' --fix"
-    },
-    "keywords": [
-        "generative-ui",
-        "examples"
-    ],
-    "author": "engineering@thesys.dev",
-    "license": "MIT",
-    "dependencies": {
-        "@inquirer/prompts": "^7.8.4",
-        "chalk": "^4.1.2",
-        "dotenv": "^16.3.1",
-        "execa": "^5.1.1",
-        "nanoid": "^5.1.5",
-        "open": "^10.2.0",
-        "openid-client": "^6.8.1",
-        "ora": "^5.4.1",
-        "posthog-node": "^5.8.4",
-        "unzipper": "^0.10.14",
-        "validate-npm-package-name": "^5.0.0",
-        "yargs": "^17.7.2"
-    },
-    "devDependencies": {
-        "@types/jest": "^29.5.8",
-        "@types/node": "^20.10.0",
-        "@types/unzipper": "^0.10.9",
-        "@types/validate-npm-package-name": "^4.0.2",
-        "@types/yargs": "^17.0.32",
-        "@typescript-eslint/eslint-plugin": "^6.13.1",
-        "@typescript-eslint/parser": "^6.13.1",
-        "eslint": "^9.0.0",
-        "eslint-config-standard-with-typescript": "^40.0.0",
-        "eslint-plugin-import": "^2.29.0",
-        "eslint-plugin-n": "^16.4.0",
-        "eslint-plugin-promise": "^6.1.1",
-        "ts-node": "^10.9.1",
-        "typescript": "^5.3.2"
-    },
-    "engines": {
-        "node": ">=20.9.0"
-    },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/thesysdev/create-c1-app.git"
-    },
-    "bugs": {
-        "url": "https://github.com/thesysdev/create-c1-app/issues"
-    },
-    "homepage": "https://github.com/thesysdev/create-c1-app#readme",
-    "publishConfig": {
-        "access": "public"
-    }
+  "name": "create-c1-app",
+  "version": "1.2.6",
+  "description": "A CLI tool that creates C1 projects with API authentication",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "create-c1-app": "bin/create-c1-app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "node --loader ts-node/esm src/index.ts --debug --disable-telemetry",
+    "start": "node bin/create-c1-app.js",
+    "prepublishOnly": "npm run build",
+    "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app.js'",
+    "lint:fix": "eslint 'src/**/*.ts' 'bin/create-c1-app.js' --fix"
+  },
+  "keywords": [
+    "generative-ui",
+    "examples"
+  ],
+  "author": "engineering@thesys.dev",
+  "license": "MIT",
+  "dependencies": {
+    "@inquirer/prompts": "^7.8.4",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.3.1",
+    "execa": "^5.1.1",
+    "nanoid": "^5.1.5",
+    "open": "^10.2.0",
+    "openid-client": "^6.8.1",
+    "ora": "^5.4.1",
+    "posthog-node": "^5.8.4",
+    "unzipper": "^0.10.14",
+    "validate-npm-package-name": "^5.0.0",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.10.0",
+    "@types/unzipper": "^0.10.9",
+    "@types/validate-npm-package-name": "^4.0.2",
+    "@types/yargs": "^17.0.32",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^9.0.0",
+    "eslint-config-standard-with-typescript": "^40.0.0",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-n": "^16.4.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.3.2"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thesysdev/create-c1-app.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thesysdev/create-c1-app/issues"
+  },
+  "homepage": "https://github.com/thesysdev/create-c1-app#readme",
+  "publishConfig": {
+    "access": "public"
+  }
 }
