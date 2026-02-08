@@ -1,13 +1,10 @@
-# Create C1 App 
+# Create C1 App
 
 A powerful CLI tool that setups Generative UI examples with C1 by Thesys
 
 ## Features
 
 ✨ **Interactive Project Setup**
-
-
-
 
 ## Quick Start
 
@@ -24,15 +21,15 @@ npx create-c1-app my-thesys-project --template template-c1-component-next --api-
 
 ## CLI Options
 
-| Option | Alias | Description | Default |
-|--------|-------|-------------|---------|
-| `[project-name]` | | Name of the project to create (positional argument) | Interactive prompt |
-| `--project-name` | `-n` | Name of the project to create (alternative to positional argument) | Interactive prompt |
-| `--template` | `-t` | Next.js template to use (`template-c1-component-next` or `template-c1-next`) | Interactive prompt |
-| `--api-key` | `-k` | Thesys API key to use for the project | Interactive prompt |
-| `--debug` | `-d` | Enable debug logging | `false` |
-| `--non-interactive` | | Run without prompts; fails fast if required options are missing. Auto-enabled in CI or non-TTY shells. | `false` (auto-detected) |
-| `--disable-telemetry` | | Disable anonymous telemetry for current session | `false` |
+| Option                | Alias | Description                                                                                            | Default                 |
+| --------------------- | ----- | ------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `[project-name]`      |       | Name of the project to create (positional argument)                                                    | Interactive prompt      |
+| `--project-name`      | `-n`  | Name of the project to create (alternative to positional argument)                                     | Interactive prompt      |
+| `--template`          | `-t`  | Next.js template to use (`template-c1-component-next` or `template-c1-next`)                           | Interactive prompt      |
+| `--api-key`           | `-k`  | Thesys API key to use for the project                                                                  | Interactive prompt      |
+| `--debug`             | `-d`  | Enable debug logging                                                                                   | `false`                 |
+| `--non-interactive`   |       | Run without prompts; fails fast if required options are missing. Auto-enabled in CI or non-TTY shells. | `false` (auto-detected) |
+| `--disable-telemetry` |       | Disable anonymous telemetry for current session                                                        | `false`                 |
 
 ## Usage Examples
 
@@ -58,7 +55,6 @@ npx create-c1-app my-project --template template-c1-next --api-key your-api-key-
 npx create-c1-app --api-key your-api-key-here
 ```
 
-
 ### Non-Interactive / CI / Agent Usage
 
 When running in CI pipelines, automated scripts, or AI agent shells (e.g. Cursor, Copilot, Devin), interactive prompts will hang. The CLI supports a fully non-interactive mode:
@@ -73,10 +69,11 @@ npx create-c1-app my-project --template template-c1-next --api-key YOUR_API_KEY
 ```
 
 **Auto-detection:** The CLI automatically enables non-interactive mode when:
+
 - `stdin` is not a TTY (piped input, background process, agent shell)
-- Common CI environment variables are set (`CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `JENKINS_URL`, etc.)
 
 **Behavior in non-interactive mode:**
+
 - `--api-key` is **required** (OAuth browser flow is skipped)
 - `--project-name` defaults to `my-c1-app` if not provided
 - `--template` defaults to `template-c1-next` if not provided
@@ -94,7 +91,6 @@ pnpm run build
 pnpm link
 ```
 
-
 ## Authentication Options
 
 Create C1 App supports two authentication methods:
@@ -108,6 +104,7 @@ npx create-c1-app
 ```
 
 This method will:
+
 - Open your browser for secure authentication
 - Generate an API key automatically after successful login
 - Store the API key in your project's `.env` file
@@ -143,6 +140,7 @@ To get an API key manually:
 ### Common Issues
 
 **Error: "Project directory already exists"**
+
 ```bash
 # Choose a different name or remove the existing directory
 rm -rf existing-project-name
@@ -150,12 +148,14 @@ npx create-c1-app
 ```
 
 **Error: "Failed to download template"**
+
 ```bash
 # Check your internet connection and try again
 npx create-c1-app
 ```
 
 **Error: "Failed to install dependencies"**
+
 ```bash
 # Navigate to your project and install manually
 cd your-project-name
