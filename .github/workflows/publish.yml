@@ -1,30 +1,35 @@
-name: Publish Package
+name: Publish NPM packages
+
+permissions:
+  id-token: write # Required for OIDC
+  contents: read # Recommended security best practice
 
 on:
-    workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   publish:
-    # prevents this action from running on forks
-    if: github.repository == 'thesysdev/create-c1-app'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4.1.0
+      - uses: actions/checkout@v4
         with:
-          version: 9
-
-      - name: Set node version to 22
-        uses: actions/setup-node@v4
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v2
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org/
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+          cache-dependency-path: "**/pnpm-lock.yaml"
+
+      # CRITICAL: npm 11.5.1+ required for trusted publishing
+      - name: Install npm 11.6.4
+        run: npm install -g npm@11.6.4
 
       - name: Install deps
         run: pnpm install
@@ -33,6 +38,5 @@ jobs:
         run: pnpm run build
 
       - name: Publish package
-        run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public
+        # Note: provenance is automatically generated with trusted publishing
