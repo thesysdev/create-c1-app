@@ -1,10 +1,13 @@
-# Create C1 App
+# Create C1 App 
 
 A powerful CLI tool that setups Generative UI examples with C1 by Thesys
 
 ## Features
 
 ✨ **Interactive Project Setup**
+
+
+
 
 ## Quick Start
 
@@ -21,15 +24,17 @@ npx create-c1-app my-thesys-project --template template-c1-component-next --api-
 
 ## CLI Options
 
-| Option                | Alias | Description                                                                                            | Default                 |
-| --------------------- | ----- | ------------------------------------------------------------------------------------------------------ | ----------------------- |
-| `[project-name]`      |       | Name of the project to create (positional argument)                                                    | Interactive prompt      |
-| `--project-name`      | `-n`  | Name of the project to create (alternative to positional argument)                                     | Interactive prompt      |
-| `--template`          | `-t`  | Next.js template to use (`template-c1-component-next` or `template-c1-next`)                           | Interactive prompt      |
-| `--api-key`           | `-k`  | Thesys API key to use for the project                                                                  | Interactive prompt      |
-| `--debug`             | `-d`  | Enable debug logging                                                                                   | `false`                 |
-| `--non-interactive`   |       | Run without prompts; fails fast if required options are missing. Auto-enabled in CI or non-TTY shells. | `false` (auto-detected) |
-| `--disable-telemetry` |       | Disable anonymous telemetry for current session                                                        | `false`                 |
+| Option | Alias | Description | Default |
+|--------|-------|-------------|---------|
+| `[project-name]` | | Name of the project to create (positional argument) | Interactive prompt |
+| `--project-name` | `-n` | Name of the project to create (alternative to positional argument) | Interactive prompt |
+| `--template` | `-t` | Next.js template to use (`template-c1-component-next` or `template-c1-next`) | Interactive prompt |
+| `--api-key` | `-k` | Thesys API key to use for the project | Interactive prompt |
+| `--auth` | | Authentication method (`oauth`, `manual`, `skip`) | Prompt in interactive mode; `oauth` when provided |
+| `--skip-auth` | | **Deprecated**. Use `--auth skip` instead | `false` |
+| `--debug` | `-d` | Enable debug logging | `false` |
+| `--non-interactive` | | Run without prompts; fails fast if required options are missing. Auto-enabled in non-TTY shells. | `false` (auto-detected) |
+| `--disable-telemetry` | | Disable anonymous telemetry for current session | `false` |
 
 ## Usage Examples
 
@@ -55,29 +60,6 @@ npx create-c1-app my-project --template template-c1-next --api-key your-api-key-
 npx create-c1-app --api-key your-api-key-here
 ```
 
-### Non-Interactive / CI / Agent Usage
-
-When running in CI pipelines, automated scripts, or AI agent shells (e.g. Cursor, Copilot, Devin), interactive prompts will hang. The CLI supports a fully non-interactive mode:
-
-```bash
-# Explicit flag
-npx create-c1-app my-project --template template-c1-next --api-key YOUR_API_KEY --non-interactive
-
-# Or just provide all required flags — non-interactive mode is auto-detected
-# when stdin is not a TTY (pipes, agents, CI) or when CI env vars are set
-npx create-c1-app my-project --template template-c1-next --api-key YOUR_API_KEY
-```
-
-**Auto-detection:** The CLI automatically enables non-interactive mode when:
-
-- `stdin` is not a TTY (piped input, background process, agent shell)
-
-**Behavior in non-interactive mode:**
-
-- `--api-key` is **required** (OAuth browser flow is skipped)
-- `--project-name` defaults to `my-c1-app` if not provided
-- `--template` defaults to `template-c1-next` if not provided
-- The CLI will **fail immediately** with a clear error if required options are missing, instead of hanging on a prompt
 
 ## Development
 
@@ -91,37 +73,51 @@ pnpm run build
 pnpm link
 ```
 
+
 ## Authentication Options
 
-Create C1 App supports two authentication methods:
+Create C1 App supports flexible authentication methods:
 
 ### Option 1: OAuth 2.0 Authentication (Recommended)
 
-The CLI will automatically open your browser and guide you through the OAuth authentication process:
+The CLI will automatically open your browser and guide you through the OAuth authentication process. This is the default in interactive mode.
 
 ```bash
 npx create-c1-app
+# or explicitly:
+npx create-c1-app --auth oauth
 ```
 
 This method will:
-
 - Open your browser for secure authentication
 - Generate an API key automatically after successful login
 - Store the API key in your project's `.env` file
 
+If you do not pass an auth option in interactive mode, the CLI will ask you to choose between OAuth, manual API key entry, or skip.
+
 ### Option 2: Manual API Key
 
-If you prefer to provide your API key manually or skip OAuth authentication:
+If you prefer to enter your API key manually:
 
 ```bash
-npx create-c1-app --skip-auth
+npx create-c1-app --auth manual
 ```
 
-Or provide your existing API key directly:
+Or provide your existing API key directly via flag:
 
 ```bash
 npx create-c1-app --api-key your-api-key-here
 ```
+
+### Option 3: Skip Authentication
+
+To skip authentication and API key generation (useful for testing or CI where you might set the key later):
+
+```bash
+npx create-c1-app --auth skip
+```
+
+*Note: The `--skip-auth` flag is deprecated but still supported for backward compatibility. Use `--auth skip` going forward.*
 
 ## Getting Your Thesys API Key (Manual Method)
 
@@ -140,7 +136,6 @@ To get an API key manually:
 ### Common Issues
 
 **Error: "Project directory already exists"**
-
 ```bash
 # Choose a different name or remove the existing directory
 rm -rf existing-project-name
@@ -148,14 +143,12 @@ npx create-c1-app
 ```
 
 **Error: "Failed to download template"**
-
 ```bash
 # Check your internet connection and try again
 npx create-c1-app
 ```
 
 **Error: "Failed to install dependencies"**
-
 ```bash
 # Navigate to your project and install manually
 cd your-project-name

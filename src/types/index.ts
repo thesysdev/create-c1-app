@@ -64,6 +64,7 @@ export interface CLIOptions {
   disableTelemetry?: boolean;
   skipAuth?: boolean;
   nonInteractive?: boolean;
+  auth?: "oauth" | "manual" | "skip";
 }
 
 export interface StepResult<T = unknown> {

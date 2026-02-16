@@ -12,6 +12,8 @@
     "build": "tsc",
     "dev": "node --loader ts-node/esm src/index.ts --debug --disable-telemetry",
     "start": "node bin/create-c1-app.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "prepublishOnly": "npm run build",
     "lint": "eslint 'src/**/*.ts' 'bin/create-c1-app.js'",
     "lint:fix": "eslint 'src/**/*.ts' 'bin/create-c1-app.js' --fix"
@@ -37,7 +39,6 @@
     "yargs": "^17.7.2"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.8",
     "@types/node": "^20.10.0",
     "@types/unzipper": "^0.10.9",
     "@types/validate-npm-package-name": "^4.0.2",
@@ -50,7 +51,8 @@
     "eslint-plugin-n": "^16.4.0",
     "eslint-plugin-promise": "^6.1.1",
     "ts-node": "^10.9.1",
-    "typescript": "^5.3.2"
+    "typescript": "^5.3.2",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=20.9.0"
