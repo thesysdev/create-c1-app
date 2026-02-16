@@ -5,7 +5,7 @@ import {
   resolveAuthDecision,
   resolveAuthMethod,
   shouldPromptForAuthMethod
-} from '../src/index.js'
+} from '../src/auth/resolve.js'
 import { type CLIOptions } from '../src/types/index.js'
 
 describe('resolveAuthMethod', () => {
@@ -54,6 +54,16 @@ describe('resolveAuthMethod', () => {
 })
 
 describe('resolveAuthDecision', () => {
+  let warningSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    warningSpy = vi.spyOn(logger, 'warning').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    warningSpy.mockRestore()
+  })
+
   it('uses provided --api-key before any auth mode', () => {
     const decision = resolveAuthDecision(
       { apiKey: '  provided-api-key  ', auth: 'skip' },
@@ -64,6 +74,16 @@ describe('resolveAuthDecision', () => {
       type: 'provided-api-key',
       apiKey: 'provided-api-key'
     })
+  })
+
+  it('ignores whitespace-only api key and falls through to auth method', () => {
+    const decision = resolveAuthDecision({ apiKey: '   ', auth: 'manual' }, false)
+    expect(decision).toEqual({ type: 'manual' })
+  })
+
+  it('ignores empty string api key and falls through to auth method', () => {
+    const decision = resolveAuthDecision({ apiKey: '', auth: 'oauth' }, false)
+    expect(decision).toEqual({ type: 'oauth' })
   })
 
   it('returns skip decision with placeholder key', () => {
