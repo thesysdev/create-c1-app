@@ -56,6 +56,8 @@ export interface EnvironmentConfig {
   projectId?: string;
 }
 
+export type AuthMethod = 'oauth' | 'manual' | 'skip'
+
 export interface CLIOptions {
   projectName?: string;
   template?: "template-c1-component-next" | "template-c1-next";
@@ -64,6 +66,7 @@ export interface CLIOptions {
   disableTelemetry?: boolean;
   skipAuth?: boolean;
   nonInteractive?: boolean;
+  auth?: AuthMethod;
 }
 
 export interface StepResult<T = unknown> {

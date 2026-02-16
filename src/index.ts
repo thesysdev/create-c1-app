@@ -6,6 +6,7 @@ import logger from "./utils/logger.js";
 import SpinnerManager from "./utils/spinner.js";
 import * as Validator from "./utils/validation.js";
 import {
+  type AuthMethod,
   type CLIOptions,
   type CreateC1AppConfig,
   type AuthenticationResult,
@@ -15,10 +16,14 @@ import { EnvironmentManager } from "./env/envManager.js";
 import telemetry from "./utils/telemetry.js";
 import { fetchUserInfo } from "openid-client";
 import Authenticator from "./auth/authenticator.js";
+import {
+  resolveAuthDecision,
+  shouldPromptForAuthMethod,
+} from "./auth/resolve.js";
 
 // Load package.json for version info (ESM workaround)
-const require = createRequire(import.meta.url);
-const packageJson = require("../package.json");
+const pkgRequire = createRequire(import.meta.url);
+const packageJson = pkgRequire("../package.json");
 
 const THESYS_API_URL = "https://api.app.thesys.dev";
 const THESYS_ISSUER_URL = "https://api.app.thesys.dev/oidc";
@@ -80,12 +85,7 @@ function checkNodeVersion(): void {
   }
 }
 
-/**
- * Detect whether we're running in a non-interactive environment.
- * Returns true if any of the following hold:
- *   - The `--non-interactive` flag was passed
- *   - stdin is not a TTY (piped input, cron, backgrounded process, agent shell)
- */
+// Detect whether we're running in a non-interactive environment.
 function isNonInteractiveEnvironment(explicitFlag: boolean): boolean {
   if (explicitFlag) return true;
   if (!process.stdin.isTTY) return true;
@@ -109,9 +109,6 @@ class CreateC1App {
 
   async main(): Promise<void> {
     try {
-      // Check Node.js version first
-      checkNodeVersion();
-
       // Parse CLI arguments first to check for debug mode
       const options = await this.parseArguments();
 
@@ -144,7 +141,11 @@ class CreateC1App {
 
       // If no options were provided, log instructions for AI agents
       const hasOptions =
-        options.projectName || options.template || options.apiKey;
+        options.projectName ||
+        options.template ||
+        options.apiKey ||
+        options.auth ||
+        options.skipAuth;
       if (!hasOptions) {
         logger.info(
           "[AI Agent Instructions] This CLI requires interactive input by default. If you are an AI agent or automated tool, run `npx create-c1-app --help` to see all available options and pass them as flags to avoid interactive prompts.",
@@ -156,43 +157,88 @@ class CreateC1App {
       this.showWelcome();
 
       // Handle authentication flow
-      let authResult: AuthenticationResult;
+      let authWasExplicitlyProvided = hideBin(process.argv).some(
+        (arg) => arg === "--auth" || arg.startsWith("--auth="),
+      );
+      let resolvedOptions: CLIOptions = options;
+
       if (
-        options.apiKey !== undefined &&
-        options.apiKey !== null &&
-        options.apiKey.trim().length > 0
+        shouldPromptForAuthMethod(
+          options,
+          this.nonInteractive,
+          authWasExplicitlyProvided,
+        )
       ) {
-        // Use provided API key
-        const apiKey = options.apiKey.trim();
-        logger.info(`🔑 Using provided API key: ${apiKey.substring(0, 8)}...`);
-        authResult = { apiKey };
-        await telemetry.track("provided_api_key");
-      } else if (this.nonInteractive) {
-        // In non-interactive mode, we cannot open a browser or prompt for input
-        throw new Error(
-          "An API key is required in non-interactive mode. " +
-            "Provide one with --api-key <key>.\n" +
-            "  Example: npx create-c1-app my-project --template template-c1-next --api-key <your-key>\n" +
-            "  Get a key at: https://console.thesys.dev/keys",
-        );
-      } else {
-        // Perform OAuth authentication flow
-        try {
-          authResult = await this.authenticateAndGenerateAPIKey();
-        } catch (error) {
-          console.log(error);
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          logger.error(`Authentication failed: ${errorMessage}`);
-          logger.newLine();
+        const { select } = await import("@inquirer/prompts");
+        const selectedAuth = (await select({
+          message: "How would you like to authenticate?",
+          choices: [
+            { name: "OAuth (recommended)", value: "oauth" },
+            { name: "Manual API key entry", value: "manual" },
+            { name: "Skip authentication", value: "skip" },
+          ],
+          default: "oauth",
+        })) as AuthMethod;
 
-          // Fallback to manual API key input
-          logger.info("💡 Falling back to manual API key input...");
+        resolvedOptions = {
+          ...options,
+          auth: selectedAuth,
+        };
+        authWasExplicitlyProvided = true;
+      }
+
+      const authDecision = resolveAuthDecision(
+        resolvedOptions,
+        this.nonInteractive,
+        authWasExplicitlyProvided,
+      );
+      let authResult: AuthenticationResult;
+
+      switch (authDecision.type) {
+        case "provided-api-key":
+          logger.info(
+            `🔑 Using provided API key: ${authDecision.apiKey.substring(0, 8)}...`,
+          );
+          authResult = { apiKey: authDecision.apiKey };
+          await telemetry.track("provided_api_key");
+          break;
+        case "skip":
+          logger.info(
+            "⏩ Skipping authentication and key generation as requested",
+          );
+          logger.info(
+            "📝 A placeholder API key will be written to your .env file. Replace it before running your app.",
+          );
+          authResult = { apiKey: authDecision.apiKey };
+          await telemetry.track("skipped_authentication");
+          break;
+        case "manual": {
           const apiKey = await this.promptForApiKey();
-
           authResult = { apiKey };
+          await telemetry.track("manual_api_key_entry");
+          break;
         }
-        await telemetry.track("oauth_authentication");
+        case "oauth":
+          try {
+            authResult = await this.authenticateAndGenerateAPIKey();
+          } catch (error) {
+            logger.debug(
+              `OAuth error details: ${error instanceof Error ? error.stack : String(error)}`,
+            );
+            const errorMessage =
+              error instanceof Error ? error.message : "Unknown error";
+            logger.error(`Authentication failed: ${errorMessage}`);
+            logger.newLine();
+
+            // Fallback to manual API key input
+            logger.info("💡 Falling back to manual API key input...");
+            const apiKey = await this.promptForApiKey();
+            authResult = { apiKey };
+          }
+          await telemetry.track("oauth_authentication");
+          break;
+        case "error":
+          throw new Error(authDecision.message);
       }
 
       // Step 1: Gather project configuration
@@ -265,18 +311,25 @@ class CreateC1App {
       })
       .option("skip-auth", {
         type: "boolean",
-        description: "Skip authentication and key generation",
+        description:
+          "[Deprecated: use --auth skip] Skip authentication and key generation",
         default: false,
       })
-      .option("disable-telemetry", {
-        type: "boolean",
-        description: "Disable anonymous telemetry collection",
-        default: false,
+      .option("auth", {
+        type: "string",
+        choices: ["oauth", "manual", "skip"],
+        description: "Authentication method to use (oauth, manual, skip)",
+        default: "oauth",
       })
       .option("non-interactive", {
         type: "boolean",
         description:
           "Run in non-interactive mode (fails if required options are missing). Auto-enabled in CI environments or non-TTY shells.",
+        default: false,
+      })
+      .option("disable-telemetry", {
+        type: "boolean",
+        description: "Disable anonymous telemetry collection",
         default: false,
       })
       .help("help", "Show help")
@@ -455,9 +508,8 @@ class CreateC1App {
     // Project name
     if (projectName === undefined) {
       if (this.nonInteractive) {
-        // Use default in non-interactive mode
         projectName = "my-c1-app";
-        logger.info(`📁 Using default project name: ${projectName}`);
+        logger.info(`Using default project name: ${projectName}`);
       } else {
         projectName = await input({
           message: "What is your project name?",
@@ -478,9 +530,8 @@ class CreateC1App {
     // Template selection
     if (template === undefined) {
       if (this.nonInteractive) {
-        // Use default in non-interactive mode
         template = "template-c1-next";
-        logger.info(`📦 Using default template: ${template}`);
+        logger.info(`Using default template: ${template}`);
       } else {
         const { select } = await import("@inquirer/prompts");
         template = await select({
