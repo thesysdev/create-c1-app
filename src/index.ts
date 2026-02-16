@@ -222,7 +222,9 @@ class CreateC1App {
           try {
             authResult = await this.authenticateAndGenerateAPIKey();
           } catch (error) {
-            logger.debug(`OAuth error details: ${error instanceof Error ? error.stack : String(error)}`);
+            logger.debug(
+              `OAuth error details: ${error instanceof Error ? error.stack : String(error)}`,
+            );
             const errorMessage =
               error instanceof Error ? error.message : "Unknown error";
             logger.error(`Authentication failed: ${errorMessage}`);
@@ -334,6 +336,15 @@ class CreateC1App {
       .alias("help", "h")
       .version(packageJson.version)
       .alias("version", "v")
+      .epilogue(
+        "Getting an API key manually:\n" +
+          "  1. Visit https://console.thesys.dev/keys\n" +
+          "  2. Sign in to your Thesys account (or create one)\n" +
+          '  3. Click "Create New API Key" and give it a name\n' +
+          "  4. Copy the generated key and pass it with --api-key\n\n" +
+          "Example:\n" +
+          "  $ npx create-c1-app my-app --api-key <your-key>",
+      )
       .exitProcess(true)
       .parseAsync();
 
@@ -495,34 +506,46 @@ class CreateC1App {
     let template = options.template;
 
     // Project name
-    projectName ??= await input({
-      message: "What is your project name?",
-      default: "my-c1-app",
-      prefill: "editable",
-      validate: (input: string) => {
-        const validation = Validator.validateProjectName(input);
-        if (!validation.isValid) {
-          return validation.errors[0];
-        }
-        return true;
-      },
-      transformer: (input: string) => Validator.sanitizeProjectName(input),
-    });
+    if (projectName === undefined) {
+      if (this.nonInteractive) {
+        projectName = "my-c1-app";
+        logger.info(`Using default project name: ${projectName}`);
+      } else {
+        projectName = await input({
+          message: "What is your project name?",
+          default: "my-c1-app",
+          prefill: "editable",
+          validate: (input: string) => {
+            const validation = Validator.validateProjectName(input);
+            if (!validation.isValid) {
+              return validation.errors[0];
+            }
+            return true;
+          },
+          transformer: (input: string) => Validator.sanitizeProjectName(input),
+        });
+      }
+    }
 
     // Template selection
     if (template === undefined) {
-      const { select } = await import("@inquirer/prompts");
-      template = await select({
-        message: "Which Next.js template would you like to use?",
-        choices: [
-          {
-            name: "C1 with Next.js (Recommended)",
-            value: "template-c1-next",
-            description: "Next.js Generative UI app powered by C1",
-          },
-        ],
-        default: "template-c1-next",
-      });
+      if (this.nonInteractive) {
+        template = "template-c1-next";
+        logger.info(`Using default template: ${template}`);
+      } else {
+        const { select } = await import("@inquirer/prompts");
+        template = await select({
+          message: "Which Next.js template would you like to use?",
+          choices: [
+            {
+              name: "C1 with Next.js (Recommended)",
+              value: "template-c1-next",
+              description: "Next.js Generative UI app powered by C1",
+            },
+          ],
+          default: "template-c1-next",
+        });
+      }
     }
 
     // Update config with answers and CLI options
